@@ -137,6 +137,24 @@ class MDBListClientTests(unittest.IsolatedAsyncioTestCase):
 
 
 
+class MDBListShowBatchTests(unittest.TestCase):
+    def test_long_shows_are_split_by_episode_count(self) -> None:
+        show = {"ids": {"tmdb": 2710}, "seasons": [
+            {"number": n, "episodes": [{"number": e} for e in range(1, 11)]} for n in range(1, 19)
+        ]}
+        small = {"ids": {"tmdb": 1}, "seasons": [{"number": 1, "episodes": [{"number": 1}]}]}
+        with patch.object(mdblist, "PUSH_EPISODE_LIMIT", 25):
+            batches = list(mdblist._batched_payloads({"shows": [show, small]}))
+        sizes = [mdblist._count_leaf_items(b) for b in batches]
+        self.assertTrue(all(n <= 25 for n in sizes))
+        self.assertEqual(sum(sizes), 181)
+        sent = sorted(
+            (s["number"], e["number"]) for b in batches for sh in b["shows"] if sh["ids"]["tmdb"] == 2710
+            for s in sh["seasons"] for e in s["episodes"]
+        )
+        self.assertEqual(sent, [(n, e) for n in range(1, 19) for e in range(1, 11)])
+
+
 class MDBListListFanoutTests(unittest.IsolatedAsyncioTestCase):
     async def test_managed_watchlist_edit_pushes_to_mdblist(self) -> None:
         result = MagicMock()

@@ -1872,7 +1872,7 @@ if (me.totp_enabled) {
       if (bar) { bar.className = 'h-1.5 rounded-full transition-all duration-500 bg-red-500'; bar.style.width = '100%'; }
       if (label) label.textContent = isCancelled ? (isPush ? 'Push cancelled' : 'Pull cancelled') : (isPush ? 'Push failed' : 'Pull failed');
       if (pctEl) pctEl.textContent = '';
-      if (items) items.textContent = isCancelled ? '' : esc(job.error_message || 'Unknown error');
+      if (items) items.textContent = isCancelled ? '' : (job.error_message || 'Unknown error');
       if (statusEl) statusEl.textContent = '';
       return;
     }
@@ -1975,7 +1975,7 @@ if (me.totp_enabled) {
       if (bar) { bar.className = 'h-1.5 rounded-full transition-all duration-500 bg-red-500'; bar.style.width = '100%'; }
       if (label) label.textContent = isCancelled ? (isPush ? 'Push cancelled' : 'Pull cancelled') : (isPush ? 'Push failed' : 'Pull failed');
       if (pctEl) pctEl.textContent = '';
-      if (items) items.textContent = isCancelled ? '' : esc(job.error_message || 'Unknown error');
+      if (items) items.textContent = isCancelled ? '' : (job.error_message || 'Unknown error');
       return;
     }
 
@@ -2057,7 +2057,7 @@ if (me.totp_enabled) {
       if (bar) { bar.className = 'h-1.5 rounded-full transition-all duration-500 bg-red-500'; bar.style.width = '100%'; }
       if (label) label.textContent = isCancelled ? (isPush ? 'Push cancelled' : 'Pull cancelled') : (isPush ? 'Push failed' : 'Pull failed');
       if (pctEl) pctEl.textContent = '';
-      if (items) items.textContent = isCancelled ? '' : esc(job.error_message || 'Unknown error');
+      if (items) items.textContent = isCancelled ? '' : (job.error_message || 'Unknown error');
       return;
     }
 
@@ -2145,7 +2145,7 @@ if (me.totp_enabled) {
       if (bar) { bar.className = 'h-1.5 rounded-full transition-all duration-500 bg-red-500'; bar.style.width = '100%'; }
       if (label) label.textContent = isCancelled ? (isPush ? 'Push cancelled' : 'Pull cancelled') : (isPush ? 'Push failed' : 'Pull failed');
       if (pctEl) pctEl.textContent = '';
-      if (items) items.textContent = isCancelled ? '' : esc(job.error_message || 'Unknown error');
+      if (items) items.textContent = isCancelled ? '' : (job.error_message || 'Unknown error');
       return;
     }
     if (isCompleted) {
@@ -2242,7 +2242,7 @@ if (me.totp_enabled) {
       if (bar) { bar.className = 'h-1.5 rounded-full transition-all duration-500 bg-red-500'; bar.style.width = '100%'; }
       if (label) label.textContent = isCancelled ? 'Heal cancelled' : 'Heal failed';
       if (pctEl) pctEl.textContent = '';
-      if (items) items.textContent = isCancelled ? '' : esc(job.error_message || 'Unknown error');
+      if (items) items.textContent = isCancelled ? '' : (job.error_message || 'Unknown error');
       return;
     }
 

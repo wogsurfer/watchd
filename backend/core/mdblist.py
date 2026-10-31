@@ -9,7 +9,11 @@ import httpx
 
 MDBLIST_BASE = "https://api.mdblist.com"
 PAGE_SIZE = 1000
-PUSH_BATCH_SIZE = 500
+# MDBList takes at most 200 shows (or films) in one request, and quietly
+# keeps only part of a request holding thousands of episodes, so a request
+# also carries at most PUSH_EPISODE_LIMIT episodes (a long show is split).
+PUSH_BATCH_SIZE = 200
+PUSH_EPISODE_LIMIT = 500
 
 
 class MDBListAPIError(RuntimeError):
@@ -122,11 +126,51 @@ async def get_watchlist(api_key: str) -> dict[str, Any]:
     return await _get_all(api_key, "/watchlist/items")
 
 
+def _show_pieces(show: dict[str, Any]) -> Iterable[dict[str, Any]]:
+    """A show entry as one or more entries of at most PUSH_EPISODE_LIMIT
+    episodes each, its seasons split between them."""
+    seasons = show.get("seasons")
+    if not seasons:
+        yield show
+        return
+    head = {k: v for k, v in show.items() if k != "seasons"}
+    piece: list[dict[str, Any]] = []
+    size = 0
+    for season in seasons:
+        episodes = season.get("episodes") or []
+        if not episodes:
+            piece.append(season)
+            size += 1
+            continue
+        for offset in range(0, len(episodes), PUSH_EPISODE_LIMIT):
+            chunk = episodes[offset : offset + PUSH_EPISODE_LIMIT]
+            if size and size + len(chunk) > PUSH_EPISODE_LIMIT:
+                yield {**head, "seasons": piece}
+                piece, size = [], 0
+            piece.append({**season, "episodes": chunk})
+            size += len(chunk)
+    if piece:
+        yield {**head, "seasons": piece}
+
+
 def _batched_payloads(payload: dict[str, list[dict[str, Any]]]) -> Iterable[dict[str, list[dict[str, Any]]]]:
-    for key in ("movies", "shows", "seasons", "episodes"):
+    for key in ("movies", "seasons", "episodes"):
         values = payload.get(key, [])
         for offset in range(0, len(values), PUSH_BATCH_SIZE):
             yield {key: values[offset : offset + PUSH_BATCH_SIZE]}
+    # Shows: at most PUSH_BATCH_SIZE entries and PUSH_EPISODE_LIMIT episodes a request.
+    batch: list[dict[str, Any]] = []
+    size = 0
+    for show in payload.get("shows", []):
+        for piece in _show_pieces(show):
+            count = _count_leaf_items({"shows": [piece]})
+            if batch and (len(batch) >= PUSH_BATCH_SIZE or size + count > PUSH_EPISODE_LIMIT):
+                yield {"shows": batch}
+                batch, size = [], 0
+            batch.append(piece)
+            size += count
+    if batch:
+        yield {"shows": batch}
 
 
 def _count_leaf_items(payload: dict[str, list[dict[str, Any]]]) -> int:
