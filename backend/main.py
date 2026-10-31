@@ -10,6 +10,7 @@ import models # noqa: F401
 from routers import app_update
 from routers import (
     awards,
+    canon,
     pipeline,
     webhooks,
     media,
@@ -575,6 +576,7 @@ app.include_router(ratings.router, prefix="/ratings", tags=["ratings"])
 app.include_router(sync.router, prefix="/sync", tags=["sync"])
 app.include_router(shows.router, prefix="/shows", tags=["shows"])
 app.include_router(awards.router, prefix="/awards", tags=["awards"])
+app.include_router(canon.router, prefix="/canon", tags=["canon"])
 app.include_router(soundtrack.router, prefix="/soundtrack", tags=["soundtrack"])
 app.include_router(physical.router, prefix="/physical", tags=["physical"])
 app.include_router(lists.router, prefix="/lists", tags=["lists"])

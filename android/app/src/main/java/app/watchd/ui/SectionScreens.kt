@@ -53,6 +53,9 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.alpha
+import androidx.compose.runtime.produceState
+import app.watchd.data.CanonSummary
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -367,7 +370,7 @@ private fun watchTime(minutes: Long): String {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun YouScreen(openWatchlist: () -> Unit, openList: (Int) -> Unit, openStats: () -> Unit) {
+fun YouScreen(openWatchlist: () -> Unit, openList: (Int) -> Unit, openStats: () -> Unit, openCanon: (String) -> Unit = {}) {
     val app = LocalApp.current
     val (state, reload) = rememberLoad(Unit, saved<You>("you")) {
         coroutineScope {
@@ -392,6 +395,9 @@ fun YouScreen(openWatchlist: () -> Unit, openList: (Int) -> Unit, openStats: () 
     // load on their own and fill in when they arrive.
     val (statsState) = rememberLoad("you-stats", saved<app.watchd.data.ProfileStats>("you-stats")) { profileStats(me().id) }
     val stats = (statsState as? Load.Ready)?.value
+    val canon by produceState<List<CanonSummary>>(emptyList()) {
+        value = runCatching { app.api.canonLists().filter { it.total > 0 } }.getOrDefault(emptyList())
+    }
     LoadContent(state, reload) { you ->
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             item { PageTitle(you.name) }
@@ -462,6 +468,10 @@ fun YouScreen(openWatchlist: () -> Unit, openList: (Int) -> Unit, openStats: () 
                     films = list.movieCount, shows = list.showCount, lastAdded = list.lastAdded,
                     private = list.privacyLevel != null && list.privacyLevel != "public",
                 ) { openList(list.id) }
+            }
+            if (canon.isNotEmpty()) {
+                item { SectionTitle("Film Canon", Modifier.padding(top = 8.dp)) }
+                items(canon, key = { "canon-${it.slug}" }) { c -> CanonCard(c) { openCanon(c.slug) } }
             }
             item {
                 OutlinedButton(onClick = app.signOut, modifier = Modifier.padding(16.dp)) { Text("Sign out", color = Watchd.Muted) }
@@ -590,7 +600,11 @@ private fun ago(iso: String?): String? {
 
 // ------------------------------------------------------------------ watchlist and lists
 
-private data class GridItem(val tmdbId: Int, val type: String, val title: String?, val poster: String?, val sub: String?)
+private data class GridItem(
+    val tmdbId: Int, val type: String, val title: String?, val poster: String?, val sub: String?,
+    /** For a canon list: whether you've seen it (unseen ones are dimmed), and its place. */
+    val seen: Boolean? = null, val rank: Int? = null,
+)
 
 @Composable
 fun WatchlistScreen(onBack: () -> Unit, openMovie: (Int) -> Unit) {
@@ -659,9 +673,67 @@ private fun PosterGrid(
         }
         items(items, key = { "${it.type}-${it.tmdbId}" }) { item ->
             Column(Modifier.clickable { if (item.type == "series" || item.type == "show") openShow(item.tmdbId) else openMovie(item.tmdbId) }) {
-                Poster(item.poster, Modifier.fillMaxWidth())
+                Box {
+                    Poster(item.poster, Modifier.fillMaxWidth().alpha(if (item.seen == false) 0.45f else 1f))
+                    item.rank?.let {
+                        Text(
+                            "$it", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Black,
+                            modifier = Modifier.padding(5.dp).clip(RoundedCornerShape(6.dp)).background(Color.Black.copy(alpha = 0.75f)).padding(horizontal = 6.dp, vertical = 1.dp),
+                        )
+                    }
+                    if (item.seen == true) WatchedMark(true, Modifier.align(Alignment.TopEnd).padding(5.dp).size(22.dp))
+                }
                 Text(item.title.orEmpty(), fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
                 item.sub?.takeIf { it.isNotBlank() }?.let { Text(it, color = Watchd.Faint, fontSize = 11.sp) }
+            }
+        }
+    }
+}
+
+
+/** A canon list on You: its name, a progress bar and how many you've seen. */
+@Composable
+private fun CanonCard(c: CanonSummary, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(16.dp)
+    Row(
+        Modifier.padding(horizontal = 16.dp, vertical = 5.dp).fillMaxWidth().clip(shape).background(Watchd.Surface)
+            .clickable(onClick = onClick).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Poster(c.posters.firstOrNull(), Modifier.width(44.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(c.name, fontWeight = FontWeight.Black, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)).background(Watchd.SurfaceHigh)) {
+                Box(Modifier.fillMaxWidth(if (c.total > 0) c.seen.toFloat() / c.total else 0f).fillMaxHeight().background(Watchd.Red))
+            }
+            Text("%,d of %,d seen · %d%%".format(c.seen, c.total, if (c.total > 0) c.seen * 100 / c.total else 0), color = Watchd.Muted, fontSize = 12.sp)
+        }
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Watchd.Faint)
+    }
+}
+
+/** One canon list: its films in order, the ones you've seen marked, filterable. */
+@Composable
+fun CanonScreen(slug: String, onBack: () -> Unit, openMovie: (Int) -> Unit) {
+    val (state, reload) = rememberLoad(slug, saved("canon-$slug")) { canonList(slug) }
+    var show by rememberSaveable { mutableStateOf("All") }
+    LoadContent(state, reload) { list ->
+        val films = when (show) {
+            "Not seen" -> list.items.filter { !it.watched }
+            "Seen" -> list.items.filter { it.watched }
+            else -> list.items
+        }
+        PosterGrid(
+            list.name, "%,d of %,d seen · %d%%".format(list.seen, list.total, if (list.total > 0) list.seen * 100 / list.total else 0), onBack,
+            films.map { GridItem(it.tmdbId, "movie", it.title, it.posterPath, it.year?.toString(), seen = it.watched, rank = it.rank.takeIf { list.ranked }) },
+            openShow = {}, openMovie = openMovie,
+        ) {
+            val chipColors = FilterChipDefaults.filterChipColors(
+                selectedContainerColor = Watchd.Red, selectedLabelColor = Color.White,
+                containerColor = Watchd.Surface, labelColor = Watchd.Muted,
+            )
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
+                items(listOf("All", "Not seen", "Seen")) { name -> FilterChip(show == name, { show = name }, label = { Text(name) }, colors = chipColors, border = null) }
             }
         }
     }

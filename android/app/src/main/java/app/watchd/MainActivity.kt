@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Person
 import app.watchd.ui.CalendarScreen
 import app.watchd.ui.HistoryScreen
+import app.watchd.ui.CanonScreen
 import app.watchd.ui.ListScreen
 import app.watchd.ui.WatchlistScreen
 import app.watchd.ui.YouScreen
@@ -110,6 +111,7 @@ import kotlinx.serialization.Serializable
 @Serializable object WatchlistRoute
 @Serializable object StatsRoute
 @Serializable data class ListRoute(val id: Int)
+@Serializable data class CanonRoute(val slug: String)
 @Serializable data class PersonRoute(val id: Int)
 @Serializable object CollectionRoute
 @Serializable data class DiscRoute(val id: Int)
@@ -322,14 +324,15 @@ private fun SignedIn(session: Session, incoming: Intent?, onHandled: () -> Unit,
                 composable<CalendarRoute> { CalendarScreen(openShow, openMovie) }
                 composable<HistoryRoute> { HistoryScreen(openShow, openMovie) }
                 composable<HistoryOfRoute> { HistoryScreen(openShow, openMovie, startOn = it.toRoute<HistoryOfRoute>().type) }
-                composable<YouRoute> { YouScreen(openWatchlist = { nav.navigate(WatchlistRoute) }, openList = { nav.navigate(ListRoute(it)) }, openStats = { nav.navigate(StatsRoute) }) }
+                composable<YouRoute> { YouScreen(openWatchlist = { nav.navigate(WatchlistRoute) }, openList = { nav.navigate(ListRoute(it)) }, openStats = { nav.navigate(StatsRoute) }, openCanon = { nav.navigate(CanonRoute(it)) }) }
+                composable<CanonRoute> { CanonScreen(it.toRoute<CanonRoute>().slug, onBack = { nav.popBackStack() }, openMovie = openMovie) }
                 composable<StatsRoute> { StatsScreen(onBack = { nav.popBackStack() }) }
                 composable<PersonRoute> { PersonScreen(it.toRoute<PersonRoute>().id, onBack = { nav.popBackStack() }, openShow = openShow, openMovie = openMovie) }
                 composable<CollectionRoute> { CollectionScreen(onBack = { nav.popBackStack() }, openDisc = { nav.navigate(DiscRoute(it)) }) }
                 composable<DiscRoute> { DiscScreen(it.toRoute<DiscRoute>().id, onBack = { nav.popBackStack() }, openDisc = { id -> nav.navigate(DiscRoute(id)) }, openShow = openShow, openMovie = openMovie) }
                 composable<WatchlistRoute> { WatchlistScreen(onBack = { nav.popBackStack() }, openMovie = openMovie) }
                 composable<ListRoute> { ListScreen(it.toRoute<ListRoute>().id, onBack = { nav.popBackStack() }, openShow = openShow, openMovie = openMovie) }
-                composable<MovieRoute> { MovieScreen(it.toRoute<MovieRoute>().tmdbId, onBack = { nav.popBackStack() }, openMovie = openMovie, openPerson = openPerson, openDisc = { id -> nav.navigate(DiscRoute(id)) }) }
+                composable<MovieRoute> { MovieScreen(it.toRoute<MovieRoute>().tmdbId, onBack = { nav.popBackStack() }, openMovie = openMovie, openPerson = openPerson, openDisc = { id -> nav.navigate(DiscRoute(id)) }, openCanon = { nav.navigate(CanonRoute(it)) }) }
                 composable<ShowRoute> {
                     ShowScreen(it.toRoute<ShowRoute>().tmdbId, onBack = { nav.popBackStack() }, openSeason = { show, season -> nav.navigate(SeasonRoute(show, season)) }, openPerson = openPerson, openDisc = { id -> nav.navigate(DiscRoute(id)) },
                         openEpisode = { show, season, episode -> nav.navigate(EpisodeRoute(show, season, episode)) })

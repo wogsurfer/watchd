@@ -1128,6 +1128,31 @@ export interface PhysicalStats {
   by_purchase_year: { year: number; count: number; spent: number }[];
 }
 
+/** A "must see" list (IMDb Top 250, AFI 100...) and how much of it you've seen. */
+export interface CanonSummary {
+  slug: string;
+  name: string;
+  blurb: string;
+  total: number;
+  seen: number;
+  posters: string[];
+}
+
+export interface CanonItem {
+  tmdb_id: number;
+  title: string;
+  year: number | null;
+  rank: number | null;
+  poster_path: string | null;
+  watched: boolean;
+  ceremony?: number;
+}
+
+export interface CanonList extends Omit<CanonSummary, "posters"> {
+  ranked: boolean;
+  items: CanonItem[];
+}
+
 export const api = {
   auth: {
     login: (body: FormData) =>
@@ -1429,6 +1454,11 @@ export const api = {
   watchlist: {
     getAll: (token: string) =>
       get<WatchlistMovie[]>("/watchlist", undefined, token),
+  },
+
+  canon: {
+    lists: (token: string) => get<CanonSummary[]>("/canon", undefined, token),
+    list: (slug: string, token: string) => get<CanonList>(`/canon/${slug}`, undefined, token),
   },
 
   physical: {

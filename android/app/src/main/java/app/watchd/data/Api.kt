@@ -59,6 +59,10 @@ class Api(server: String, private val token: String?) {
     suspend fun lists(): ListsResponse = get("lists")
     suspend fun list(id: Int): ListDetail = get("lists/$id")
     suspend fun watchlist(): List<WatchlistMovie> = get("watchlist")
+    suspend fun canonLists(): List<CanonSummary> = get("canon")
+    suspend fun canonList(slug: String): CanonList = get("canon/$slug")
+    suspend fun canonFilm(tmdbId: Int): List<CanonBadge> = get("canon/film/$tmdbId")
+    suspend fun filmScores(tmdbId: Int): MdbScores = get("canon/scores/$tmdbId")
     suspend fun totals(): Totals = get("dashboard/stats")
     suspend fun holidayTheme(): HolidayTheme? = get<ThemeResponse>("dashboard/theme").theme
     suspend fun hero(): Hero = get("dashboard/hero")

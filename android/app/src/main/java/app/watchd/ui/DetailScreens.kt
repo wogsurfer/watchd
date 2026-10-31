@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 import kotlin.math.roundToInt
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,6 +57,9 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import app.watchd.data.CanonBadge
+import app.watchd.data.MdbScore
+import app.watchd.data.MdbScores
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -103,12 +107,18 @@ private fun plural(n: Int, word: String) = "$n $word${if (n == 1) "" else "s"}"
 // ------------------------------------------------------------------ film
 
 @Composable
-fun MovieScreen(tmdbId: Int, onBack: () -> Unit, openMovie: (Int) -> Unit, openPerson: (Int) -> Unit, openDisc: (Int) -> Unit) {
+fun MovieScreen(
+    tmdbId: Int, onBack: () -> Unit, openMovie: (Int) -> Unit, openPerson: (Int) -> Unit, openDisc: (Int) -> Unit,
+    openCanon: (String) -> Unit = {},
+) {
     val (state, reload) = rememberLoad(tmdbId, saved("movie-$tmdbId")) { movie(tmdbId) }
     val awards = rememberAwards(tmdbId) { filmAwards(tmdbId).awards }
     val soundtrack = rememberSoundtrack("movie", tmdbId)
     val app = LocalApp.current
     val list = rememberLazyListState()
+    // Loaded on their own so the page shows first.
+    val scores by produceState<MdbScores?>(null, tmdbId) { value = runCatching { app.api.filmScores(tmdbId) }.getOrNull() }
+    val canon by produceState<List<CanonBadge>>(emptyList(), tmdbId) { value = runCatching { app.api.canonFilm(tmdbId) }.getOrDefault(emptyList()) }
     LoadContent(state, reload) { movie ->
         var inLists by remember(movie) { mutableStateOf(movie.inLists) }
         var listsOpen by remember { mutableStateOf(false) }
@@ -123,6 +133,8 @@ fun MovieScreen(tmdbId: Int, onBack: () -> Unit, openMovie: (Int) -> Unit, openP
                 )
             }
             item { RatingsPill(movie.tmdbRating, movie.imdbRating, rate.value, Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp), onRate = rate.open) }
+            scores?.scores?.takeIf { it.isNotEmpty() }?.let { s -> item { ExtraScores(s) } }
+            if (canon.isNotEmpty()) item { CanonBadges(canon, openCanon) }
             val released = listOfNotNull(
                 movie.releaseDate?.let { "Released ${formatDate(it)}" },
                 movie.productionCountries.mapNotNull { it.name }.takeIf { it.isNotEmpty() }?.joinToString(" • "),
@@ -896,4 +908,53 @@ private fun money(n: Long): String = when {
     n >= 1_000_000_000 -> "$" + "%.1f".format(n / 1e9) + "B"
     n >= 1_000_000 -> "$" + "%.1f".format(n / 1e6).removeSuffix(".0") + "M"
     else -> "$" + (n / 1000) + "K"
+}
+
+
+/** Rotten Tomatoes (critics and audience), Metacritic, Letterboxd and Ebert, as on the site. */
+@Composable
+private fun ExtraScores(scores: Map<String, MdbScore>) {
+    @Composable
+    fun score(label: String, value: String, colour: Color, badge: Color? = null) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(label, color = Watchd.Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(
+                value, color = if (badge != null) Color.White else colour, fontWeight = FontWeight.Black, fontSize = 14.sp,
+                modifier = if (badge != null) Modifier.clip(RoundedCornerShape(4.dp)).background(badge).padding(horizontal = 5.dp, vertical = 1.dp) else Modifier,
+            )
+        }
+    }
+    val tomato = Color(0xFFFA320A)
+    FlowRow(
+        Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        scores["tomatoes"]?.value?.let { score("RT", "${it.toInt()}%", if (it >= 60) tomato else Color(0xFF0AC855)) }
+        scores["popcorn"]?.value?.let { score("Audience", "${it.toInt()}%", tomato) }
+        scores["metacritic"]?.value?.let { v ->
+            score("Metacritic", "${v.toInt()}", Color.White, if (v >= 61) Color(0xFF00CE7A) else if (v >= 40) Color(0xFFFFBD3F) else Color(0xFFFF6874))
+        }
+        scores["letterboxd"]?.value?.let { score("Letterboxd", "%.1f".format(it), Color(0xFF40BCF4)) }
+        scores["rogerebert"]?.value?.let { score("Ebert", "$it★", Watchd.Text) }
+    }
+}
+
+/** The canon lists a film is on, each opening that list. */
+@Composable
+private fun CanonBadges(badges: List<CanonBadge>, openCanon: (String) -> Unit) {
+    val gold = Color(0xFFFACC15)
+    FlowRow(
+        Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        badges.forEach { b ->
+            Text(
+                listOfNotNull(b.rank?.let { "#$it" }, b.name).joinToString(" "),
+                color = gold, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(gold.copy(alpha = 0.12f))
+                    .border(1.dp, gold.copy(alpha = 0.35f), RoundedCornerShape(50))
+                    .clickable { openCanon(b.slug) }.padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+        }
+    }
 }

@@ -1,7 +1,7 @@
 ---
 import Base from "../layouts/Base.astro";
 import ListCard from "../components/ListCard.astro";
-import { api, type UserList, type PublicList } from "../lib/api";
+import { api, type UserList, type PublicList, type CanonSummary } from "../lib/api";
 export const prerender = false;
 
 const { token, user } = Astro.locals;
@@ -12,6 +12,8 @@ let publicLists: PublicList[] = [];
 // The Watchlist stands in for the old "Movies" list (merged into it), first on the page.
 let watchlist: { count: number; posters: { url: string; adult: boolean }[] } | null = null;
 let error = "";
+// The film canon (IMDb Top 250, AFI 100...) with how much of each you've seen.
+let canon: CanonSummary[] = [];
 
 try {
   const [myData, pubData, films] = await Promise.all([
@@ -19,6 +21,7 @@ try {
     api.lists.getPublic(token!),
     api.watchlist.getAll(token!).catch(() => null),
   ]);
+  canon = (await api.canon.lists(token!).catch(() => [])).filter((c) => c.total > 0);
   lists = myData.lists.filter((l) => l.name.toLowerCase() !== "movies");
   if (films) {
     watchlist = {
@@ -204,6 +207,31 @@ try {
       </div>
     )}
 
+    {canon.length > 0 && (
+      <div class="mt-16 pt-10 border-t border-zinc-800/50">
+        <h2 class="section-headline mb-2">Film Canon</h2>
+        <p class="text-sm text-zinc-400 mb-6">The lists every film fan works through, and how far you've got.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          {canon.map((c) => {
+            const pct = Math.round((c.seen / c.total) * 100);
+            return (
+              <a href={`/canon/${c.slug}`} class="canon-card group">
+                <div class="canon-card-posters" aria-hidden="true">
+                  {c.posters.map((p) => <img src={p} alt="" loading="lazy" decoding="async" />)}
+                </div>
+                <div class="canon-card-body">
+                  <h3>{c.name}</h3>
+                  <p>{c.blurb}</p>
+                  <div class="canon-card-bar"><span style={`width:${pct}%`}></span></div>
+                  <p class="canon-card-count"><b>{c.seen.toLocaleString()}</b> of {c.total.toLocaleString()} seen · {pct}%</p>
+                </div>
+              </a>
+            );
+          })}
+        </div>
+      </div>
+    )}
+
     {publicLists.length > 0 && (
       <div class="mt-16 pt-10 border-t border-zinc-800/50">
         <h2 class="section-headline mb-6">From the Community</h2>
@@ -311,3 +339,21 @@ try {
     });
   });
 </script>
+
+<style>
+  .canon-card { display: flex; gap: 16px; padding: 16px; border-radius: 20px; background: rgb(24 24 27 / .5); border: 1px solid var(--color-zinc-800); transition: border-color .2s; }
+  .canon-card:hover { border-color: var(--color-zinc-700); }
+  .canon-card-posters { position: relative; width: 92px; height: 120px; flex-shrink: 0; }
+  .canon-card-posters img { position: absolute; top: 0; width: 64px; height: 96px; object-fit: cover; border-radius: 8px; border: 2px solid var(--color-zinc-950); box-shadow: 0 6px 16px rgb(0 0 0 / .5); }
+  .canon-card-posters img:nth-child(1) { left: 0; z-index: 4; }
+  .canon-card-posters img:nth-child(2) { left: 10px; top: 8px; z-index: 3; }
+  .canon-card-posters img:nth-child(3) { left: 20px; top: 16px; z-index: 2; }
+  .canon-card-posters img:nth-child(4) { left: 28px; top: 24px; z-index: 1; }
+  .canon-card-body { min-width: 0; flex: 1; display: grid; gap: 6px; align-content: start; }
+  .canon-card-body h3 { color: var(--color-zinc-100); font-weight: 900; font-size: 16px; line-height: 1.2; }
+  .canon-card-body > p:not(.canon-card-count) { color: var(--color-zinc-500); font-size: 12px; line-height: 1.4; }
+  .canon-card-bar { height: 6px; border-radius: 999px; background: var(--color-zinc-800); overflow: hidden; margin-top: 4px; }
+  .canon-card-bar span { display: block; height: 100%; background: var(--color-red-600); }
+  .canon-card-count { color: var(--color-zinc-400); font-size: 12px; }
+  .canon-card-count b { color: var(--color-zinc-100); font-size: 14px; }
+</style>

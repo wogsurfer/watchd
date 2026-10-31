@@ -396,6 +396,48 @@ data class StripEpisode(
     val imdbRating: Double? = null,
 )
 
+/** One of MDBList's scores for a film: Rotten Tomatoes, Metacritic, Letterboxd... */
+@Serializable
+data class MdbScore(val value: Double? = null, val votes: Long? = null)
+
+@Serializable
+data class MdbScores(val scores: Map<String, MdbScore> = emptyMap())
+
+/** A canon list a film is on (IMDb Top 250, AFI 100...), with its place if ranked. */
+@Serializable
+data class CanonBadge(val slug: String, val name: String, val rank: Int? = null)
+
+@Serializable
+data class CanonSummary(
+    val slug: String,
+    val name: String,
+    val blurb: String = "",
+    val total: Int = 0,
+    val seen: Int = 0,
+    val posters: List<String> = emptyList(),
+)
+
+@Serializable
+data class CanonItem(
+    val tmdbId: Int,
+    val title: String? = null,
+    val year: Int? = null,
+    val rank: Int? = null,
+    val posterPath: String? = null,
+    val watched: Boolean = false,
+)
+
+@Serializable
+data class CanonList(
+    val slug: String,
+    val name: String,
+    val blurb: String = "",
+    val ranked: Boolean = false,
+    val total: Int = 0,
+    val seen: Int = 0,
+    val items: List<CanonItem> = emptyList(),
+)
+
 @Serializable
 data class EpisodeStrip(val next: StripEpisode? = null, val recent: List<StripEpisode> = emptyList())
 
