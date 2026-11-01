@@ -6,6 +6,25 @@
 /** Use this as `timeZone` for any date/time formatted during server rendering. */
 export const HOME_TIME_ZONE = (typeof process !== "undefined" && process.env?.TZ) || "UTC";
 
+/**
+ * Where watches were logged before a move (WATCHD_EARLIER_HOME, e.g.
+ * "Perth:2015-10-25"): their times are that place's clock, so they're tagged
+ * with its name. Read during server rendering; Base.astro hands it to the
+ * browser as <html data-earlier-home="Perth|2015-10-25">.
+ */
+export interface EarlierHome { name: string; until: string }
+export const EARLIER_HOME: EarlierHome | null = (() => {
+  const raw = typeof process !== "undefined" ? process.env?.WATCHD_EARLIER_HOME : undefined;
+  const m = raw?.match(/^(.+):(\d{4}-\d{2}-\d{2})$/);
+  return m ? { name: m[1].trim(), until: m[2] } : null;
+})();
+
+/** The earlier home's name when this watch (naive UTC) was before the move. */
+export function earlierHomeOf(value: string | null | undefined, home: EarlierHome | null = EARLIER_HOME): string | null {
+  if (!value || !home) return null;
+  return utcIso(value) < `${home.until}T00:00:00Z` ? home.name : null;
+}
+
 /** Mark a naive UTC timestamp as UTC so Date parses it correctly anywhere. */
 export function utcIso(value: string): string {
   // Postgres gives microseconds; some browsers (Safari) only parse milliseconds.

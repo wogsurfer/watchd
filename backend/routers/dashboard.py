@@ -541,8 +541,10 @@ async def holiday_theme(day: str | None = None):
     ?day=YYYY-MM-DD shows another day's, to preview it."""
     from datetime import date as _date
     from core.holidays import theme_for, today
+    from core.home_time import EARLIER_HOME
     try:
         when = _date.fromisoformat(day) if day else today()
     except ValueError:
         when = today()
-    return {"theme": theme_for(when)}
+    # The app picks up the earlier home (see core.home_time) from here too.
+    return {"theme": theme_for(when), "earlier_home": EARLIER_HOME}

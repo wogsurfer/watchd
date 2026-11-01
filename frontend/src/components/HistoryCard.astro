@@ -1,7 +1,7 @@
 ---
 import type { WatchEvent } from "../lib/api";
 import { tmdbImageUrl } from "../lib/api";
-import { HOME_TIME_ZONE, WATCH_TIME_FORMAT } from "../lib/time";
+import { HOME_TIME_ZONE, WATCH_TIME_FORMAT, earlierHomeOf } from "../lib/time";
 
 interface Props {
   event: WatchEvent;
@@ -93,6 +93,7 @@ const episodeNumber =
     {timeString && (
       <div class="time">
         {timeString}
+        {earlierHomeOf(event.watched_at) && <span class="earlier-home">{earlierHomeOf(event.watched_at)}</span>}
       </div>
     )}
 

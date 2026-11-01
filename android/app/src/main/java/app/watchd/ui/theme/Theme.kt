@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.sp
 // holiday swaps for its own colour (core/holidays.py).
 object Watchd {
     var holiday by mutableStateOf<HolidayTheme?>(null)
+    /** Where watches before a move were logged (their times are its clock). */
+    var earlierHome by mutableStateOf<app.watchd.data.EarlierHome?>(null)
     val Red: Color get() = holiday?.accentColor ?: Color(0xFFE50914)
     /** The holiday's other colour, or the red on an ordinary day. */
     val Second: Color get() = holiday?.secondColor ?: Red

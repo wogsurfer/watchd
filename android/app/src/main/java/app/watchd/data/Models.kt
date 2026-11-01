@@ -376,7 +376,11 @@ data class HolidayTheme(
 }
 
 @Serializable
-data class ThemeResponse(val theme: HolidayTheme? = null)
+data class ThemeResponse(val theme: HolidayTheme? = null, val earlierHome: EarlierHome? = null)
+
+/** Where watches were logged before a move; their times are that place's clock. */
+@Serializable
+data class EarlierHome(val name: String, val until: String)
 
 private fun hexColor(hex: String) = runCatching {
     androidx.compose.ui.graphics.Color(android.graphics.Color.parseColor(hex))

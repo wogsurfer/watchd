@@ -386,3 +386,10 @@ html.light * {
    between every section, and under every section heading. */
 .page-section { margin-top: 4rem; }
 .page-section-head { margin-bottom: 2rem; }
+
+/* A watch from before a move: its time is that place's clock (lib/time.ts). */
+.earlier-home {
+  display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px;
+  border: 1px solid rgb(56 189 248 / .35); background: rgb(56 189 248 / .1); color: #7dd3fc;
+  font-size: 10px; font-weight: 800; letter-spacing: .04em; line-height: 16px; vertical-align: 1px;
+}

@@ -204,7 +204,10 @@ fun WatchSheet(target: WatchTarget, onChanged: () -> Unit, onDismiss: () -> Unit
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         WatchedMark(true, Modifier.size(20.dp))
                         Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                            Text(localPlayTime(play.watchedAt), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(localPlayTime(play.watchedAt), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                EarlierHomeTag(play.watchedAt)
+                            }
                             play.watchSource?.let { Text(it, color = Watchd.Muted, fontSize = 13.sp) }
                         }
                         IconButton(onClick = {

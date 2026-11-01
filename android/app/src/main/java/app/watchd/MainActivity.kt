@@ -252,7 +252,7 @@ private fun SignedIn(session: Session, incoming: Intent?, onHandled: () -> Unit,
     // Today's holiday theme, checked again whenever the app comes back.
     val themeScope = rememberCoroutineScope()
     LifecycleResumeEffect(app) {
-        val job = themeScope.launch { runCatching { app.api.holidayTheme() }.onSuccess { Watchd.holiday = it } }
+        val job = themeScope.launch { runCatching { app.api.theme() }.onSuccess { Watchd.holiday = it.theme; Watchd.earlierHome = it.earlierHome } }
         onPauseOrDispose { job.cancel() }
     }
     LaunchedEffect(app) {

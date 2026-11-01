@@ -64,7 +64,8 @@ class Api(server: String, private val token: String?) {
     suspend fun canonFilm(tmdbId: Int): List<CanonBadge> = get("canon/film/$tmdbId")
     suspend fun filmScores(tmdbId: Int): MdbScores = get("canon/scores/$tmdbId")
     suspend fun totals(): Totals = get("dashboard/stats")
-    suspend fun holidayTheme(): HolidayTheme? = get<ThemeResponse>("dashboard/theme").theme
+    suspend fun holidayTheme(): HolidayTheme? = theme().theme
+    suspend fun theme(): ThemeResponse = get("dashboard/theme")
     suspend fun hero(): Hero = get("dashboard/hero")
     /** The last 7 and 30 days' watching, the streak and this week's top show, for the widget. */
     suspend fun atAGlance(): AtAGlance = get("dashboard/glance")

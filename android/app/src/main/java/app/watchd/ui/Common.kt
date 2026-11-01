@@ -406,3 +406,22 @@ fun episodeCode(season: Int?, episode: Int?) =
     "%02dx%02d".format(season ?: 0, episode ?: 0)
 
 fun year(date: String?) = date?.take(4)?.takeIf { it.length == 4 }
+
+
+/** The earlier home's name when a watch (UTC "2014-01-27T17:04:00") was before the move. */
+fun earlierHomeOf(watchedAt: String?): String? {
+    val home = Watchd.earlierHome ?: return null
+    return if (watchedAt != null && watchedAt.take(10) < home.until) home.name else null
+}
+
+/** "Perth": a small tag after a watch time that's on the earlier home's clock. */
+@Composable
+fun EarlierHomeTag(watchedAt: String?) {
+    val name = earlierHomeOf(watchedAt) ?: return
+    val blue = Color(0xFF7DD3FC)
+    Text(
+        name, color = blue, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold,
+        modifier = Modifier.padding(start = 6.dp).clip(RoundedCornerShape(50)).background(blue.copy(alpha = 0.12f))
+            .border(1.dp, blue.copy(alpha = 0.35f), RoundedCornerShape(50)).padding(horizontal = 6.dp, vertical = 1.dp),
+    )
+}

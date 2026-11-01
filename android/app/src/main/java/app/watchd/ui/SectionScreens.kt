@@ -350,7 +350,12 @@ private fun HistoryRow(event: HistoryEvent, openShow: (Int) -> Unit, openMovie: 
             )
         }
         Column(horizontalAlignment = Alignment.End) {
-            localTime(event.watchedAt)?.let { Text(it.format(historyTime), fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+            localTime(event.watchedAt)?.let {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    EarlierHomeTag(event.watchedAt)
+                    Text(it.format(historyTime), fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp))
+                }
+            }
             event.watchSource?.let { Text(it.uppercase(), color = Watchd.Faint, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
         }
     }

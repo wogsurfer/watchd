@@ -554,6 +554,7 @@ fun WatchHistoryList(watches: List<app.watchd.data.WatchEvent>) {
                 if (at != null) {
                     Text(at.format(playDate), fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     Text(at.format(playTime), color = Watchd.Faint, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    EarlierHomeTag(watch.watchedAt)
                 } else {
                     Text("Date unknown", color = Watchd.Faint, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
