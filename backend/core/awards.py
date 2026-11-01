@@ -519,15 +519,36 @@ def _key(award: dict) -> tuple:
     return award["award_name"], award["category_name"], str(award["year"]), award["is_winner"], award.get("details") or ""
 
 
+def _generic(award: dict) -> bool:
+    """A row whose "category" is only the award's own name ("Golden Globes"):
+    an open dataset that knows of the win but not what it was for."""
+    fam = family(award.get("category_name"))
+    return fam is not None and fam == family(award.get("award_name"))
+
+
 def _dedupe(rows: list[dict], subject: str) -> list[dict]:
-    """TVDB sometimes lists the same nomination twice."""
+    """TVDB sometimes lists the same nomination twice; and a category-less row
+    is dropped when the same award, year and nominee is already there with
+    its proper category (McConaughey's 2014 Globe, once as "Best Actor in a
+    Motion Picture – Drama" and once as just "Golden Globes")."""
     seen, out = set(), []
     for r in rows:
         key = (r["award_name"], r["category_name"], str(r["year"]), r["is_winner"], r.get(subject))
         if key not in seen:
             seen.add(key)
             out.append(r)
-    return out
+
+    def covered(r: dict) -> bool:
+        year = _year(r["year"])
+        return any(
+            o is not r and not _generic(o) and family(o["award_name"]) == family(r["award_name"])
+            and o.get(subject) and o.get(subject) == r.get(subject)
+            and (o["is_winner"] or not r["is_winner"])
+            and year and _year(o["year"]) and abs(_year(o["year"]) - year) <= 1
+            for o in out
+        )
+
+    return [r for r in out if not (_generic(r) and covered(r))]
 
 
 async def film_awards(movie_tmdb_id: int, tvdb_key: str, tmdb_key: str | None, movie: dict | None = None) -> list[dict]:
@@ -535,7 +556,7 @@ async def film_awards(movie_tmdb_id: int, tvdb_key: str, tmdb_key: str | None, m
     hit = _film_cache.get(movie_tmdb_id) or disk_cache.load("film_awards_v3", movie_tmdb_id, _TTL)
     if hit and time.time() - hit[0] < _TTL:
         _film_cache[movie_tmdb_id] = hit
-        return hit[1]
+        return _dedupe(hit[1], "person_name")  # saved before a dedupe rule was added
 
     if movie is None:
         movie = await tmdb.get_movie(movie_tmdb_id, api_key=tmdb_key)
@@ -616,7 +637,7 @@ async def person_awards(person_id: int, tvdb_key: str, tmdb_key: str | None) -> 
     hit = _person_cache.get(person_id) or disk_cache.load("person_awards_v7", person_id, _TTL)
     if hit and time.time() - hit[0] < _TTL:
         _person_cache[person_id] = hit
-        return hit[1]
+        return _dedupe(hit[1], "work_title")  # saved before a dedupe rule was added
 
     from routers.shows import _name_award_nominees  # avoid a circular import
 

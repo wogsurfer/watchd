@@ -286,3 +286,17 @@ class AwardIndexWaitTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GenericCategoryTests(unittest.TestCase):
+    def test_category_less_row_goes_when_the_real_one_is_there(self) -> None:
+        real = {"award_name": "Golden Globe Awards", "category_name": "Best Actor in a Motion Picture – Drama",
+                "year": "2014", "is_winner": True, "person_name": "Matthew McConaughey"}
+        bare = {"award_name": "Golden Globe Awards", "category_name": "Golden Globes",
+                "year": "2014", "is_winner": True, "person_name": "Matthew McConaughey"}
+        self.assertEqual(awards._dedupe([real, bare], "person_name"), [real])
+
+    def test_category_less_row_stays_when_it_is_all_there_is(self) -> None:
+        bare = {"award_name": "Golden Globe Awards", "category_name": "Golden Globes",
+                "year": "2014", "is_winner": True, "person_name": "Someone Else"}
+        self.assertEqual(awards._dedupe([bare], "person_name"), [bare])
