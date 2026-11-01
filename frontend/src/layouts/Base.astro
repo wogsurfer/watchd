@@ -1085,10 +1085,13 @@ const bottomNavItem = (active: boolean) =>
         if (events.length === 0) {
           eventsEl.innerHTML = '<div class="px-4 py-3 text-sm text-zinc-500 italic">No plays recorded yet</div>';
         } else {
+          // Watches from before a move (see lib/time.ts) say whose clock they're on.
+          const [homeName, homeUntil] = (document.documentElement.dataset.earlierHome || '').split('|');
+          const earlierHomeTag = (at: string | null) =>
+            at && homeUntil && at < `${homeUntil}T00:00:00` ? ` <span class="earlier-home">${homeName}</span>` : '';
           eventsEl.innerHTML = events.map(ev => {
             const fmt = ev.watched_at
               ? new Date(ev.watched_at + 'Z').toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
-                + (homeUntil && ev.watched_at < `${homeUntil}T00:00:00` ? ` <span class="earlier-home">${homeName}</span>` : '')
               : 'Unknown date';
             const sources = ['', 'Cinema', 'Blu-ray', '4K', 'DVD', 'Cable', 'VHS', 'TV', 'Netflix', 'Amazon', 'Disney+', 'AppleTV', 'PLEX', 'YouTube', 'Digital file'];
             const sourceOptions = sources.map(source => {
@@ -1096,7 +1099,7 @@ const bottomNavItem = (active: boolean) =>
               return `<option value="${esc(source)}"${source === (ev.watch_source || '') ? ' selected' : ''}>${esc(label)}</option>`;
             }).join('');
             return `<div class="flex items-center gap-2 px-4 py-2.5 hover:bg-zinc-800/50 group">
-              <span class="min-w-0 flex-1 text-sm text-zinc-200">${esc(fmt)}</span>
+              <span class="min-w-0 flex-1 text-sm text-zinc-200">${esc(fmt)}${earlierHomeTag(ev.watched_at)}</span>
               <select class="max-w-36 rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-green-500" data-watch-source-event="${ev.id}" data-current-source="${esc(ev.watch_source || '')}" aria-label="Watch source for ${esc(fmt)}">
                 ${sourceOptions}
               </select>
