@@ -128,6 +128,8 @@ class Api(server: String, private val token: String?) {
         get("history/item-events", "tmdb_id" to "${target.tmdbId}", "media_type" to target.mediaType)
 
     suspend fun deletePlay(id: Int) = send(request("history/event/$id").delete())
+    /** Puts back a play deleted in the last ten minutes, exactly as it was. */
+    suspend fun undoDeletePlay(id: Int) = send(request("history/event/$id/undo").post(ByteArray(0).toRequestBody()))
 
     /** Checks in: a "Watch now" session that records the watch when it ends. */
     suspend fun checkIn(target: WatchTarget, source: String?) {

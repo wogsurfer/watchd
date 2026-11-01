@@ -101,6 +101,20 @@ class AppContext(
         }
     }
 
+    /**
+     * Says [message] with an Undo, on the app's own scope so it outlives the
+     * sheet or screen that asked; Undo runs [undo], then [onUndo] if it worked.
+     */
+    fun offerUndo(message: String, undo: suspend Api.() -> Unit, onUndo: () -> Unit = {}) {
+        scope.launch {
+            snackbar.currentSnackbarData?.dismiss()
+            if (snackbar.showSnackbar(message, actionLabel = "Undo", duration = SnackbarDuration.Long) != SnackbarResult.ActionPerformed) return@launch
+            val restored = runCatching { api.undo() }.isSuccess
+            if (restored) onUndo()
+            snackbar.showSnackbar(if (restored) "Play restored" else "Couldn't undo")
+        }
+    }
+
     fun refreshSessions() {
         scope.launch {
             try {

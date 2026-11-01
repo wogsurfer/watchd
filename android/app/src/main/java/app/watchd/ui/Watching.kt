@@ -127,7 +127,8 @@ fun WatchSheet(target: WatchTarget, onChanged: () -> Unit, onDismiss: () -> Unit
         scope.launch { sheet.hide() }.invokeOnCompletion { onDismiss() }
     }
 
-    fun run(message: String, work: suspend () -> Unit) {
+    /** Does [work], closes the sheet and says [message]; with [undo], the message offers Undo. */
+    fun run(message: String, undo: (suspend () -> Unit)? = null, work: suspend () -> Unit) {
         busy = true
         scope.launch {
             try {
@@ -136,7 +137,9 @@ fun WatchSheet(target: WatchTarget, onChanged: () -> Unit, onDismiss: () -> Unit
                 onChanged()
                 close()
                 app.snackbar.currentSnackbarData?.dismiss()
-                app.snackbar.showSnackbar(message)
+                // The sheet is closing, so the Undo lives on the app's scope.
+                if (undo == null) app.snackbar.showSnackbar(message)
+                else app.offerUndo(message, undo = { undo() }, onUndo = onChanged)
             } catch (e: SignedOut) {
                 app.signOut()
             } catch (e: Exception) {
@@ -211,7 +214,7 @@ fun WatchSheet(target: WatchTarget, onChanged: () -> Unit, onDismiss: () -> Unit
                             play.watchSource?.let { Text(it, color = Watchd.Muted, fontSize = 13.sp) }
                         }
                         IconButton(onClick = {
-                            run("Play removed") { app.api.deletePlay(play.id) }
+                            run("Play removed", undo = { app.api.undoDeletePlay(play.id) }) { app.api.deletePlay(play.id) }
                         }) { Icon(Icons.Outlined.DeleteOutline, contentDescription = "Remove play", tint = Watchd.Faint) }
                     }
                 }

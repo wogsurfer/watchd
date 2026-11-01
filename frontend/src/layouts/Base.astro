@@ -1146,14 +1146,49 @@ const bottomNavItem = (active: boolean) =>
       if (!delBtn) return;
       delBtn.style.opacity = '0.4';
       delBtn.style.pointerEvents = 'none';
+      const eventId = delBtn.dataset.deleteEvent!;
       try {
-        await apiFetch(`/history/event/${delBtn.dataset.deleteEvent}`, 'DELETE');
+        await apiFetch(`/history/event/${eventId}`, 'DELETE');
         await loadWatchHistoryEvents();
+        showUndoBar(eventId);
       } catch {
         delBtn.style.opacity = '';
         delBtn.style.pointerEvents = '';
       }
     });
+
+    // "Play removed · Undo" for a few seconds after a delete; Undo puts the
+    // very same play back (the server keeps it for ten minutes).
+    let undoTimer: ReturnType<typeof setTimeout> | undefined;
+    function showUndoBar(eventId: string) {
+      document.getElementById('undo-bar')?.remove();
+      clearTimeout(undoTimer);
+      const bar = document.createElement('div');
+      bar.id = 'undo-bar';
+      bar.setAttribute('role', 'status');
+      bar.className = 'fixed left-1/2 -translate-x-1/2 bottom-6 z-[100] flex items-center gap-4 pl-5 pr-2 py-2 rounded-xl bg-zinc-900 border border-zinc-700 shadow-2xl text-sm text-zinc-200';
+      bar.innerHTML = '<span>Play removed</span><button type="button" class="px-3 py-1.5 rounded-lg font-bold text-red-400 hover:bg-zinc-800 cursor-pointer">Undo</button>';
+      document.body.appendChild(bar);
+      // Twelve seconds, held while the pointer is on it so it can't vanish mid-reach.
+      undoTimer = setTimeout(() => bar.remove(), 12000);
+      bar.addEventListener('mouseenter', () => clearTimeout(undoTimer));
+      bar.addEventListener('mouseleave', () => {
+        if (bar.querySelector('button')) undoTimer = setTimeout(() => bar.remove(), 4000);
+      });
+      bar.querySelector('button')!.addEventListener('click', async () => {
+        clearTimeout(undoTimer);
+        try {
+          await apiFetch(`/history/event/${eventId}/undo`, 'POST');
+          bar.querySelector('span')!.textContent = 'Play restored';
+          bar.querySelector('button')!.remove();
+          if (!document.getElementById('watch-history-modal')?.classList.contains('hidden')) await loadWatchHistoryEvents();
+        } catch {
+          bar.querySelector('span')!.textContent = "Couldn't undo";
+          bar.querySelector('button')!.remove();
+        }
+        undoTimer = setTimeout(() => bar.remove(), 3000);
+      });
+    }
 
     document.getElementById('watch-history-modal-events')!.addEventListener('change', async (e) => {
       const sourceSelect = (e.target as Element).closest<HTMLSelectElement>('[data-watch-source-event]');

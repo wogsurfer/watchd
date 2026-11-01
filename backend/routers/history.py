@@ -1637,6 +1637,12 @@ async def get_item_events(
     ]
 
 
+# Plays deleted in the last few minutes, so Undo can put the very same one
+# back: {event id: (deleted at, user id, the play's fields)}.
+_UNDO_SECONDS = 600
+_recently_deleted: dict[int, tuple[float, int, dict]] = {}
+
+
 @router.delete("/event/{event_id}")
 async def delete_single_event(
     event_id: int,
@@ -1655,6 +1661,14 @@ async def delete_single_event(
         raise HTTPException(status_code=404, detail="Event not found")
 
     media_id = event.media_id
+    now = time.time()
+    for key in [k for k, (at, _, _) in _recently_deleted.items() if now - at > _UNDO_SECONDS]:
+        del _recently_deleted[key]
+    _recently_deleted[event_id] = (now, current_user.id, {
+        "media_id": event.media_id, "watched_at": event.watched_at, "watch_source": event.watch_source,
+        "progress_seconds": event.progress_seconds, "progress_percent": event.progress_percent,
+        "completed": event.completed, "play_count": event.play_count,
+    })
     await db.execute(
         delete(WatchEvent).where(
             WatchEvent.id == event_id,
@@ -1673,6 +1687,28 @@ async def delete_single_event(
     if remaining.scalar() == 0:
         await _push_watch_state(db, current_user.id, [media_id], watched=False)
 
+    return {"status": "ok"}
+
+
+@router.post("/event/{event_id}/undo")
+async def undo_delete_event(
+    event_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Put back a play deleted in the last ten minutes, exactly as it was."""
+    saved = _recently_deleted.get(event_id)
+    if not saved or saved[1] != current_user.id or time.time() - saved[0] > _UNDO_SECONDS:
+        raise HTTPException(status_code=404, detail="Too late to undo")
+    fields = saved[2]
+    had_plays = (await db.execute(
+        select(func.count()).where(WatchEvent.user_id == current_user.id, WatchEvent.media_id == fields["media_id"])
+    )).scalar()
+    db.add(WatchEvent(id=event_id, user_id=current_user.id, **fields))
+    await db.commit()
+    del _recently_deleted[event_id]
+    if not had_plays:
+        await _push_watch_state(db, current_user.id, [fields["media_id"]], watched=True)
     return {"status": "ok"}
 
 
