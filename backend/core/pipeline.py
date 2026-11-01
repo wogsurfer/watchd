@@ -349,10 +349,19 @@ _cache: dict = {"at": 0.0, "result": None}
 CACHE_SECONDS = 120
 
 
+def set_up() -> bool:
+    """Whether this machine has any of the download apps for Watchd to watch:
+    an install without them gets no panel rather than a page of failures."""
+    apps = any((ARR_DIR / name / "config.xml").exists() for name in ("Sonarr", "Radarr", "Prowlarr"))
+    return apps or UNPACKERR_CONF.exists()
+
+
 async def pipeline_health(force: bool = False) -> dict:
     """Every check, worst first in importance order, cached briefly."""
     if not force and _cache["result"] and time.time() - _cache["at"] < CACHE_SECONDS:
         return _cache["result"]
+    if not set_up():
+        return {"status": "off", "problems": 0, "checked_at": datetime.now().isoformat(timespec="seconds"), "checks": []}
     async with httpx.AsyncClient(timeout=8) as client:
         checks, keys = await _arr_checks(client)
         helpers = await _helper_checks(client, keys.get("sonarr"))

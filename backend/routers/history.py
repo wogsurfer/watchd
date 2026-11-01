@@ -34,7 +34,7 @@ import core.tvdb as tvdb_client
 import core.tmdb as tmdb
 import core.nuvio as nuvio_client
 
-MALTA_TZ = ZoneInfo("Europe/Malta")
+from core.home_time import HOME_TZ
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -911,8 +911,8 @@ async def get_next_up(
         for show_id, (season, episode) in last_per_show.items()
     ]
 
-    now_malta = datetime.now(MALTA_TZ)
-    today = now_malta.date()
+    now_local = datetime.now(HOME_TZ)
+    today = now_local.date()
 
     candidates_result = await db.execute(
         select(Media)
@@ -992,7 +992,7 @@ async def get_next_up(
             aired_at = media.first_aired_at
             if aired_at.tzinfo is None:
                 aired_at = aired_at.replace(tzinfo=UTC)
-            return aired_at.astimezone(MALTA_TZ) <= now_malta
+            return aired_at.astimezone(HOME_TZ) <= now_local
 
         try:
             release_day = (
@@ -1016,8 +1016,8 @@ async def get_next_up(
         )
         if tvmaze_air_datetime:
             if tvmaze_air_datetime.tzinfo is None:
-                tvmaze_air_datetime = tvmaze_air_datetime.replace(tzinfo=MALTA_TZ)
-            return tvmaze_air_datetime.astimezone(MALTA_TZ) <= now_malta
+                tvmaze_air_datetime = tvmaze_air_datetime.replace(tzinfo=HOME_TZ)
+            return tvmaze_air_datetime.astimezone(HOME_TZ) <= now_local
 
         tvdb_air_date = await get_tvdb_air_date(
             show,
@@ -1136,8 +1136,8 @@ async def get_next_up(
             if (scheduled_season, scheduled_episode) <= (season, episode):
                 continue
             if scheduled_at.tzinfo is None:
-                scheduled_at = scheduled_at.replace(tzinfo=MALTA_TZ)
-            if scheduled_at.astimezone(MALTA_TZ) <= now_malta:
+                scheduled_at = scheduled_at.replace(tzinfo=HOME_TZ)
+            if scheduled_at.astimezone(HOME_TZ) <= now_local:
                 aired_schedule.append((scheduled_season, scheduled_episode, scheduled_ep, scheduled_at))
 
         aired_schedule.sort(key=lambda item: (item[0], item[1]))
@@ -1196,7 +1196,7 @@ async def get_next_up(
                 aired_at = media.first_aired_at
                 if aired_at.tzinfo is None:
                     aired_at = aired_at.replace(tzinfo=UTC)
-                recheck = min(recheck, max(60, (aired_at - now_malta).total_seconds()))
+                recheck = min(recheck, max(60, (aired_at - now_local).total_seconds()))
             return None, recheck
         return media, 0
 
@@ -1294,8 +1294,8 @@ async def get_next_up(
         # were already handled conservatively by episode_has_aired.
         if tvmaze_air_date:
             if tvmaze_air_date.tzinfo is None:
-                tvmaze_air_date = tvmaze_air_date.replace(tzinfo=MALTA_TZ)
-            if tvmaze_air_date.astimezone(MALTA_TZ) > now_malta:
+                tvmaze_air_date = tvmaze_air_date.replace(tzinfo=HOME_TZ)
+            if tvmaze_air_date.astimezone(HOME_TZ) > now_local:
                 continue
 
         next_up.append(m)

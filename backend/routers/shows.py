@@ -47,7 +47,7 @@ from core.translations import (
 )
 from routers.calendar import get_tvmaze_episodes, _cached_tvmaze_show, tvmaze_release
 
-MALTA_TZ = ZoneInfo("Europe/Malta")
+from core.home_time import HOME_TZ
 
 router = APIRouter()
 
@@ -1002,8 +1002,8 @@ async def list_progress_shows(
     # Only consult TVMaze for episodes scheduled today whose local catalog
     # entry has a date but no precise airing timestamp. TVMaze timestamps are
     # converted to Malta time by the shared calendar helper.
-    now_malta = datetime.now(MALTA_TZ)
-    today_malta = now_malta.date()
+    now_local = datetime.now(HOME_TZ)
+    today_malta = now_local.date()
     today_iso = today_malta.isoformat()
     adjacent_malta_days = {
         today_malta,
@@ -1026,7 +1026,7 @@ async def list_progress_shows(
             stored_airtime = ep.first_aired_at
             if stored_airtime.tzinfo is None:
                 stored_airtime = stored_airtime.replace(tzinfo=timezone.utc)
-            if stored_airtime.astimezone(MALTA_TZ).date() in adjacent_malta_days:
+            if stored_airtime.astimezone(HOME_TZ).date() in adjacent_malta_days:
                 schedule_show_ids.add(ep.show_id)
     for show in shows:
         next_episode = (show.tmdb_data or {}).get("next_episode_to_air") or {}
@@ -1136,8 +1136,8 @@ async def list_progress_shows(
             )
             if scheduled_at is not None:
                 if scheduled_at.tzinfo is None:
-                    scheduled_at = scheduled_at.replace(tzinfo=MALTA_TZ)
-                return scheduled_at.astimezone(MALTA_TZ) <= now_malta
+                    scheduled_at = scheduled_at.replace(tzinfo=HOME_TZ)
+                return scheduled_at.astimezone(HOME_TZ) <= now_local
 
             try:
                 release_day = (
@@ -1157,8 +1157,8 @@ async def list_progress_shows(
                 aired_at = ep.first_aired_at
                 if aired_at.tzinfo is None:
                     aired_at = aired_at.replace(tzinfo=timezone.utc)
-                aired_at = aired_at.astimezone(MALTA_TZ)
-                if aired_at <= now_malta:
+                aired_at = aired_at.astimezone(HOME_TZ)
+                if aired_at <= now_local:
                     return True
                 if release_day and release_day < today_malta - timedelta(days=1):
                     return True
@@ -1265,8 +1265,8 @@ async def list_progress_shows(
             if scheduled_at is None:
                 continue
             if scheduled_at.tzinfo is None:
-                scheduled_at = scheduled_at.replace(tzinfo=MALTA_TZ)
-            if scheduled_at.astimezone(MALTA_TZ) <= now_malta:
+                scheduled_at = scheduled_at.replace(tzinfo=HOME_TZ)
+            if scheduled_at.astimezone(HOME_TZ) <= now_local:
                 record_aired_position({
                     "season_number": position[0],
                     "episode_number": position[1],
@@ -1301,10 +1301,10 @@ async def list_progress_shows(
             in schedules_by_show.get(show.id, {}).items()
             if scheduled_at is not None
             and (
-                scheduled_at.replace(tzinfo=MALTA_TZ)
+                scheduled_at.replace(tzinfo=HOME_TZ)
                 if scheduled_at.tzinfo is None
-                else scheduled_at.astimezone(MALTA_TZ)
-            ) > now_malta
+                else scheduled_at.astimezone(HOME_TZ)
+            ) > now_local
         }
         try:
             next_air_day = date.fromisoformat(str(next_episode.get("air_date"))[:10])
@@ -1333,8 +1333,8 @@ async def list_progress_shows(
             scheduled_at = schedules_by_show.get(show.id, {}).get(next_position)
             if scheduled_at is not None:
                 if scheduled_at.tzinfo is None:
-                    scheduled_at = scheduled_at.replace(tzinfo=MALTA_TZ)
-                next_episode_has_aired = scheduled_at.astimezone(MALTA_TZ) <= now_malta
+                    scheduled_at = scheduled_at.replace(tzinfo=HOME_TZ)
+                next_episode_has_aired = scheduled_at.astimezone(HOME_TZ) <= now_local
         if next_position and next_episode_has_aired:
             record_aired_position(next_episode)
 
@@ -1395,7 +1395,7 @@ async def list_progress_shows(
             has_upcoming_episodes = True
         elif next_air_day in {today_malta, today_malta - timedelta(days=1)}:
             scheduled_at = schedules_by_show.get(show.id, {}).get(next_position)
-            if scheduled_at is not None and scheduled_at > now_malta:
+            if scheduled_at is not None and scheduled_at > now_local:
                 has_upcoming_episodes = True
 
         # Returning shows stay in Progress when the user has watched every
@@ -3877,7 +3877,7 @@ async def get_episode_strip(
     except Exception:
         pass
 
-    now = datetime.now(MALTA_TZ)
+    now = datetime.now(HOME_TZ)
     def aired(e: dict) -> bool:
         stamp = airs.get((e.get("season_number"), e.get("episode_number")))
         if stamp:

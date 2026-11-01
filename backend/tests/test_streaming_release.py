@@ -1,7 +1,12 @@
 import unittest
 from datetime import datetime
 
-from routers.calendar import MALTA_TZ, tvmaze_release
+from zoneinfo import ZoneInfo
+
+from routers.calendar import tvmaze_release
+
+# Expected times are written as Malta clock times; any home zone gives the same moment.
+MALTA_TZ = ZoneInfo("Europe/Malta")
 
 
 def malta(*args):

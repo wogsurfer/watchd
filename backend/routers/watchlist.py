@@ -206,8 +206,9 @@ async def recently_downloaded(
     return films
 
 
-# How many watchlist films Radarr works on at once, as the Trakt list it replaced did.
-RADARR_LIST_SIZE = 25
+# How many watchlist films Radarr works on at once: small enough that
+# downloads come steadily rather than filling the disk in one go.
+RADARR_LIST_SIZE = 10
 # Days a film can go unfound before it gives up its place to the next one.
 RADARR_GIVE_UP_DAYS = 30
 
@@ -218,7 +219,7 @@ async def radarr_list(
     db: AsyncSession = Depends(get_db),
 ):
     """Radarr's import list (a "Custom Lists" entry pointing here): your next
-    25 watchlist films still to download, in watchlist rank order. A film
+    10 watchlist films still to download, in watchlist rank order. A film
     drops out once Radarr has it, you've watched it, you've unmonitored it in
     Radarr, or Radarr has looked for a month without finding it, and the next
     one takes its place."""

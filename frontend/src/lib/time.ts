@@ -1,10 +1,10 @@
 // Watch times come from the API as naive UTC ("2026-10-18T13:00:00"). Pages
 // render them in a <time data-local="date|time"> element: the server formats it
-// in the app's home time zone (the server itself runs in UTC), then Base.astro
+// in the install's home time zone (its TZ setting), then Base.astro
 // re-formats it in the browser's own zone, matching the Watch History popup.
 
 /** Use this as `timeZone` for any date/time formatted during server rendering. */
-export const HOME_TIME_ZONE = "Europe/Malta";
+export const HOME_TIME_ZONE = (typeof process !== "undefined" && process.env?.TZ) || "UTC";
 
 /** Mark a naive UTC timestamp as UTC so Date parses it correctly anywhere. */
 export function utcIso(value: string): string {

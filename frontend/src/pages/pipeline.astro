@@ -34,6 +34,11 @@ export const prerender = false;
       const res = await fetch(`/api/proxy/pipeline/health${force ? "?refresh=true" : ""}`);
       if (!res.ok) throw new Error();
       const h: Health = await res.json();
+      if (h.status === "off") {
+        sub.textContent = "Not set up";
+        list.innerHTML = `<section class="pl-card"><div class="pl-card-head"><h2>No download apps found</h2></div><ul class="pl-details"><li>This panel watches Sonarr, Radarr, Prowlarr, Unpackerr and Bazarr. Watchd can't see any of them on this machine, so there's nothing to check.</li></ul></section>`;
+        return;
+      }
       const when = new Date(h.checked_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
       sub.textContent = (h.problems ? `${h.problems} part${h.problems === 1 ? "" : "s"} need attention` : "Everything's working") + ` · checked at ${when}`;
       list.innerHTML = h.checks.map((c) => `

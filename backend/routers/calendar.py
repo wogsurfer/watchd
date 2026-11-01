@@ -28,7 +28,7 @@ from routers.media import check_tmdb_key, get_user_tmdb_key
 
 router = APIRouter()
 
-MALTA_TZ = ZoneInfo("Europe/Malta")
+from core.home_time import HOME_TZ
 
 
 # =========================================================
@@ -53,7 +53,7 @@ def parse_tvmaze_airstamp(value: str | None):
         if dt.tzinfo is None:
             return None
 
-        return dt.astimezone(MALTA_TZ)
+        return dt.astimezone(HOME_TZ)
 
     except (ValueError, TypeError):
         return None
@@ -84,7 +84,7 @@ def tvmaze_release(ep: dict, web_channel: str | None = None):
             return parse_tvmaze_airstamp(ep.get("airstamp"))
         zone, hours = release
         local = datetime(day.year, day.month, day.day, tzinfo=ZoneInfo(zone))
-        return (local + timedelta(hours=hours)).astimezone(MALTA_TZ)
+        return (local + timedelta(hours=hours)).astimezone(HOME_TZ)
     return parse_tvmaze_airstamp(ep.get("airstamp"))
 
 
@@ -561,7 +561,7 @@ async def calendar_upcoming(
     # -----------------------------------------------------
 
     today = datetime.now(
-        MALTA_TZ
+        HOME_TZ
     ).date()
 
     start_date = (

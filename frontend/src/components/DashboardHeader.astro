@@ -177,6 +177,8 @@ function formatDuration(minutes: number) {
     fetch("/api/proxy/pipeline/health")
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((h) => {
+        // No download apps on this install: no chip.
+        if (h.status === "off") { chip.remove(); return; }
         chip.dataset.status = h.status;
         chip.querySelector(".pipeline-text")!.textContent =
           h.problems ? `DOWNLOADS: ${h.problems} PROBLEM${h.problems === 1 ? "" : "S"}` : "DOWNLOADS OK";

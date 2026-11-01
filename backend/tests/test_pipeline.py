@@ -5,6 +5,9 @@ import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from unittest.mock import patch
+
+from core import pipeline
 from core.pipeline import explain, log_problems, unpacked_leftovers, unpackerr_keys, worst
 
 CONF = '''
@@ -91,3 +94,14 @@ class PipelineTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NotSetUpTests(unittest.IsolatedAsyncioTestCase):
+    async def test_no_download_apps_means_no_panel(self) -> None:
+        with tempfile.TemporaryDirectory() as empty, \
+                patch.object(pipeline, "ARR_DIR", Path(empty)), \
+                patch.object(pipeline, "UNPACKERR_CONF", Path(empty) / "unpackerr.conf"), \
+                patch.dict(pipeline._cache, {"at": 0.0, "result": None}):
+            health = await pipeline.pipeline_health(force=True)
+        self.assertEqual(health["status"], "off")
+        self.assertEqual(health["checks"], [])

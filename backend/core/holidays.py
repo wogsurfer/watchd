@@ -11,7 +11,7 @@ from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 from datetime import datetime
 
-MALTA = ZoneInfo("Europe/Malta")
+from core.home_time import HOME_TZ
 
 # Oscars night moves each year; add a year's date once the Academy sets it.
 # The show starts at 7pm in New York, midnight in Malta, so it runs into the next day.
@@ -126,4 +126,4 @@ def theme_for(day: date) -> dict | None:
 
 
 def today() -> date:
-    return datetime.now(MALTA).date()
+    return datetime.now(HOME_TZ).date()

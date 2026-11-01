@@ -35,7 +35,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * "VisionQuest 01x06 Deadlock is out": every 15 minutes, the schedule's
- * episodes that came out in the last half day (Watchd's times are Malta's)
+ * episodes that came out in the last half day (in Watchd's home time zone)
  * and aren't watched yet, each told once. Tapping one opens the show.
  */
 class NewEpisodesWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
@@ -54,7 +54,7 @@ class NewEpisodesWorker(context: Context, params: WorkerParameters) : CoroutineW
         Log.i(TAG, "checking ${episodes.size} episodes")
         val prefs = applicationContext.getSharedPreferences("new_episodes", Context.MODE_PRIVATE)
         val told = prefs.getStringSet("told", emptySet()).orEmpty().toMutableSet()
-        val now = ZonedDateTime.now(MALTA)
+        val now = ZonedDateTime.now(HOME)
         for (ep in episodes) {
             val out = releaseTime(ep) ?: continue
             val key = "${ep.showTmdbId}-${ep.season}-${ep.episode}"
@@ -119,7 +119,7 @@ class NewEpisodesWorker(context: Context, params: WorkerParameters) : CoroutineW
     private fun releaseTime(ep: UpcomingEpisode): ZonedDateTime? {
         val day = runCatching { LocalDate.parse(ep.airDate) }.getOrNull() ?: return null
         val time = runCatching { LocalTime.parse(ep.airTime) }.getOrNull() ?: LocalTime.MIDNIGHT
-        return day.atTime(time).atZone(MALTA)
+        return day.atTime(time).atZone(HOME)
     }
 
     /** Shows it; false when notifications aren't allowed (yet), so it's tried again. */
@@ -152,7 +152,8 @@ class NewEpisodesWorker(context: Context, params: WorkerParameters) : CoroutineW
         private const val TAG = "NewEpisodes"
         private const val CHANNEL = "new_episodes"
         private const val WORK = "new_episodes"
-        private val MALTA: ZoneId = ZoneId.of("Europe/Malta")
+        /** Air times are in the server's home zone, which is the phone's own for anyone at home. */
+        private val HOME: ZoneId get() = ZoneId.systemDefault()
         private val FRESH: Duration = Duration.ofHours(12)
 
         fun ensureChannel(context: Context) {

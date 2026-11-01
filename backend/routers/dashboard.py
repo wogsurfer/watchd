@@ -508,8 +508,9 @@ async def dashboard_glance(
     # Days in a row (Malta's days) with something watched, up to today; a
     # run that ended yesterday still counts until today is over. Only the
     # dates are fetched, so the whole history is cheap.
-    malta = ZoneInfo("Europe/Malta")
-    local_day = func.date(func.timezone("Europe/Malta", func.timezone("UTC", WatchEvent.watched_at)))
+    from core.home_time import HOME_TZ, HOME_TZ_NAME
+    malta = HOME_TZ
+    local_day = func.date(func.timezone(HOME_TZ_NAME, func.timezone("UTC", WatchEvent.watched_at)))
     days = set((await db.execute(
         select(local_day).distinct()
         .where(WatchEvent.user_id == current_user.id, WatchEvent.completed.is_(True), WatchEvent.watched_at.is_not(None))
