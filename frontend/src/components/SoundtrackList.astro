@@ -35,14 +35,14 @@ const { endpoint } = Astro.props;
   const NOTE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M9 17.5V6.2a1 1 0 0 1 .76-.97l9-2.25A1 1 0 0 1 20 3.95V15.5a3 3 0 1 1-2-2.83V7.3l-7 1.75v8.45a3 3 0 1 1-2-2.83z"/></svg>';
 
   const row = (t) => `
-    <li class="flex items-center gap-4 py-3 min-w-0">
+    <li class="flex items-start gap-4 py-3 min-w-0">
       <span class="shrink-0 grid place-items-center w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 text-red-500">${NOTE}</span>
       <div class="min-w-0 flex-1">
         <div class="text-sm font-black text-zinc-100 truncate" title="${esc(t.title)}">${esc(t.title)}</div>
         <div class="text-xs font-bold text-zinc-400 truncate" title="${esc(t.artist)}">${esc(t.artist)}</div>
         ${t.writers?.length ? `<div class="text-[11px] text-zinc-500 truncate" title="Written by ${esc(t.writers.join(', '))}">Written by ${esc(t.writers.join(', '))}</div>` : ''}
       </div>
-      <span class="shrink-0 text-xs font-bold tabular-nums text-zinc-600">${duration(t.length)}</span>
+      <span class="shrink-0 pt-0.5 text-xs font-bold tabular-nums text-zinc-600">${duration(t.length)}</span>
     </li>`;
 
   const render = (albums, all) => {

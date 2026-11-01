@@ -370,6 +370,26 @@ def _songs(albums: list[dict], meta: dict, film_composers: frozenset[str] = froz
     return kept
 
 
+# Section names a Wikipedia article gives a song list, which aren't album titles.
+_GENERIC_TITLES = {"", "soundtrack", "soundtracks", "track listing", "songs", "music", "songs featured", "other songs"}
+
+
+def _merged(result: dict) -> dict:
+    """One list for albums with the same name or none at all (an article's
+    two song tables), so the page doesn't head two lists "Soundtrack"."""
+    albums: list[dict] = []
+    by_title: dict[str, dict] = {}
+    for album in result.get("albums") or []:
+        title = _norm(album.get("title") or "")
+        key = "" if title in _GENERIC_TITLES else title
+        if key in by_title:
+            by_title[key]["tracks"] = by_title[key]["tracks"] + album["tracks"]
+        else:
+            by_title[key] = {**album, "title": album.get("title") if key else None}
+            albums.append(by_title[key])
+    return {**result, "albums": albums}
+
+
 async def _lookup(kind: str, tmdb_id: int, api_key: str | None) -> dict:
     meta = await _meta(kind, tmdb_id, api_key)
     found = await _musicbrainz_albums(meta) if meta["title"] and meta["first_year"] else []
@@ -392,7 +412,7 @@ async def soundtrack(kind: str, tmdb_id: int, api_key: str | None) -> dict:
         ttl = _TTL if hit[1].get("albums") else _EMPTY_TTL
         if time.time() - hit[0] < ttl:
             _cache[key] = hit
-            return hit[1]
+            return _merged(hit[1])
     task = _inflight.get(key)
     if task is None:
         task = _inflight[key] = asyncio.ensure_future(_lookup(kind, tmdb_id, api_key))
@@ -400,9 +420,9 @@ async def soundtrack(kind: str, tmdb_id: int, api_key: str | None) -> dict:
         result = await task
     except Exception as e:
         print(f"Soundtrack lookup failed for {key}: {e!r}")
-        return hit[1] if hit else {"albums": [], "source": None}
+        return _merged(hit[1]) if hit else {"albums": [], "source": None}
     finally:
         _inflight.pop(key, None)
     _cache[key] = (time.time(), result)
     disk_cache.save("soundtrack_v3", key, result)
-    return result
+    return _merged(result)
