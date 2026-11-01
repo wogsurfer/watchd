@@ -1876,10 +1876,14 @@ async def get_collection_details(
         if not check_tmdb_key(tmdb_key):
             raise HTTPException(status_code=404, detail="TMDB API Key not configured")
 
+        from core import franchises
         data, genre_data = await asyncio.gather(
-            tmdb.get_collection(collection_id, api_key=tmdb_key),
+            franchises.mcu(tmdb_key) if collection_id == franchises.MCU_ID
+            else tmdb.get_collection(collection_id, api_key=tmdb_key),
             tmdb.get_genre_list(api_key=tmdb_key),
         )
+        if not data:
+            raise HTTPException(status_code=404, detail="Collection not found")
 
         genre_map = {g["id"]: g["name"] for g in genre_data.get("genres", [])}
         parts_data = sorted(data.get("parts", []), key=lambda x: x.get("release_date") or "")
@@ -5385,7 +5389,11 @@ async def get_media_details(
             type,
             tmdb_key=tmdb_key,
         )
-        coll_data = await tmdb.get_collection(raw_coll["id"], api_key=tmdb_key) if raw_coll else None
+        # A franchise TMDB splits up (the MCU) shows as Watchd's one collection.
+        from core import franchises
+        coll_data = await franchises.collection_for(tmdb_id, tmdb_key) if type == MediaType.movie else None
+        if coll_data is None and raw_coll:
+            coll_data = await tmdb.get_collection(raw_coll["id"], api_key=tmdb_key)
 
         collection = None
         if coll_data:
