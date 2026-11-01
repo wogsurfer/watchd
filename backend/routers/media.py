@@ -5415,7 +5415,8 @@ async def get_media_details(
                         "overview": p.get("overview"),
                         "adult": p.get("adult", False),
                     }
-                    for p in data.get("parts", [])
+                    # Release order, as on the collection page (TMDB's own order isn't).
+                    for p in sorted(data.get("parts", []), key=lambda p: p.get("release_date") or "9999")
                 ],
             }
 
