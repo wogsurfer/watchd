@@ -27,6 +27,9 @@ try {
   error = e instanceof Error ? e.message : String(e);
 }
 
+// Ended & Completed is a record of finished shows, so no bins to take one off by accident.
+const canRemove = !!list?.is_owner && list.name.toLowerCase() !== "ended & completed";
+
 if (!list && !error) {
   return Astro.redirect("/lists");
 }
@@ -304,7 +307,7 @@ const sonarrUrl = `${origin}/api/proxy/sonarr-compat/${list?.id}/api/v3/series`;
             <p class="text-zinc-500">{list.is_owner ? "This list is empty. Search above to add movies and shows." : "This list is empty."}</p>
           </div>
         ) : (
-          <div id="items-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+          <div id="items-grid" data-can-remove={String(canRemove)} class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
             {list.items.map((entry) => (
               <div
                 data-item-id={entry.id}
@@ -315,7 +318,7 @@ const sonarrUrl = `${origin}/api/proxy/sonarr-compat/${list?.id}/api/v3/series`;
                 data-sort-order={entry.sort_order}
               >
                 <MediaCard item={entry.media}>
-                  {list.is_owner && (
+                  {canRemove && (
                     <button
                       class="remove-item-btn absolute top-1.5 left-1.5 z-10 w-7 h-7 rounded-lg flex items-center justify-center bg-zinc-950/80 border border-zinc-800 text-zinc-500 hover:text-rose-200 hover:border-rose-700 hover:bg-rose-900 transition-all duration-200 cursor-pointer"
                       data-item-id={entry.id}
@@ -331,7 +334,7 @@ const sonarrUrl = `${origin}/api/proxy/sonarr-compat/${list?.id}/api/v3/series`;
             ))}
           </div>
         )}
-        {list.items.length === 0 && <div id="items-grid" class="hidden grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6"></div>}
+        {list.items.length === 0 && <div id="items-grid" data-can-remove={String(canRemove)} class="hidden grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6"></div>}
       </div>
 
       <!-- Other Lists -->
@@ -927,7 +930,7 @@ const sonarrUrl = `${origin}/api/proxy/sonarr-compat/${list?.id}/api/v3/series`;
       wrapper.dataset.rating = cardMedia.tmdb_rating ?? '';
       wrapper.dataset.addedAt = entry.added_at || new Date().toISOString();
       wrapper.dataset.sortOrder = entry.sort_order ?? '0';
-      wrapper.innerHTML = buildCard(cardMedia, entry.id);
+      wrapper.innerHTML = buildCard(cardMedia, grid.dataset.canRemove === 'false' ? null : entry.id);
       grid.appendChild(wrapper);
       applyListSort();
       bindRemoveButtons();
