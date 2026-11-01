@@ -2,6 +2,8 @@
 // A network's TMDB logo on the dark detail-page header. Many logos are black
 // or have black lettering (NBC, HBO, FOX…), so the script below repaints their
 // dark, colourless pixels white and leaves coloured parts (NBC's peacock) alone.
+// A logo with white detail on black (ABC's letters in a black disc) would turn
+// into a plain white shape that way, so its black and white swap instead.
 interface Props {
   src: string;
   name: string;
@@ -39,15 +41,27 @@ const { src, name } = Astro.props;
       return; // canvas tainted; leave the logo as is
     }
     const px = data.data;
+    const neutral = (i: number) => Math.max(px[i], px[i + 1], px[i + 2]) - Math.min(px[i], px[i + 1], px[i + 2]) < 40;
+    const lumaAt = (i: number) => 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+    // Near-black of any hue (navy, very dark red) also disappears on the header.
+    const isDark = (i: number) => (neutral(i) && lumaAt(i) < 128) || lumaAt(i) < 40;
+    const isLight = (i: number) => neutral(i) && lumaAt(i) >= 200;
+
+    let opaque = 0, dark = 0, light = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      if (px[i + 3] < 16) continue;
+      opaque++;
+      if (isDark(i)) dark++;
+      else if (isLight(i)) light++;
+    }
+    // White detail on black: swap the two, so the detail stays visible.
+    const swap = dark > opaque * 0.2 && light > opaque * 0.05;
+
     let changed = false;
     for (let i = 0; i < px.length; i += 4) {
       if (px[i + 3] < 16) continue;
-      const r = px[i], g = px[i + 1], b = px[i + 2];
-      const max = Math.max(r, g, b), min = Math.min(r, g, b);
-      const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-      // Near-black of any hue (navy, very dark red) also disappears on the header.
-      if ((max - min < 40 && luma < 128) || luma < 40) {
-        const v = 255 - Math.round(luma);
+      if (isDark(i) || (swap && isLight(i))) {
+        const v = 255 - Math.round(lumaAt(i));
         px[i] = px[i + 1] = px[i + 2] = v;
         changed = true;
       }
