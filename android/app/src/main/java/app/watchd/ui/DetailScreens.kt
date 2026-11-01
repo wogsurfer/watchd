@@ -168,7 +168,8 @@ fun MovieScreen(
             if (movie.watchHistory.isNotEmpty()) item { WatchHistoryList(movie.watchHistory) }
             item { Overview(movie.tagline, movie.overview, movie.genres) }
             if (movie.whereToWatch.isNotEmpty()) item { WhereToWatchRow(movie.whereToWatch) }
-            movie.collection?.takeIf { it.parts.size > 1 }?.let { collection ->
+            // The film's own collection, then the whole franchise where TMDB splits it up (the MCU).
+            listOfNotNull(movie.collection, movie.franchise).filter { it.parts.size > 1 }.forEach { collection ->
                 item { SectionTitle(collection.name ?: "Collection", Modifier.padding(top = 8.dp)) }
                 item { CollectionRow(collection.parts, current = movie.tmdbId, openMovie = openMovie) }
             }

@@ -209,6 +209,8 @@ data class Movie(
     val crew: List<Person> = emptyList(),
     val whereToWatch: List<WhereToWatch> = emptyList(),
     val collection: FilmCollection? = null,
+    /** The whole franchise, where TMDB splits it up (the MCU). */
+    val franchise: FilmCollection? = null,
     val watchHistory: List<WatchEvent> = emptyList(),
     val discs: List<Disc> = emptyList(),
     val inLists: List<Int> = emptyList(),

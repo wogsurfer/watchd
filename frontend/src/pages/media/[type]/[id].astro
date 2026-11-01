@@ -36,6 +36,7 @@ const userRated = item?.user_rating != null;
 const isEpisode = item?.type === "episode";
 const isMovie = item?.type === "movie";
 const collection = item?.collection;
+const franchise = item?.franchise;
 const showRefreshBtn = item?.in_library && (item.type === "movie" || (isEpisode && !!item.show_tmdb_id));
 
 const today = new Date();
@@ -491,6 +492,17 @@ const money = (n: number) =>
               title={collection.name}
               items={collection.parts.filter((p) => p.tmdb_id !== item.tmdb_id)}
               href={`/collection/${collection.id}`}
+            />
+          </div>
+        )}
+
+        {/* The whole franchise as well, where TMDB splits it up (the MCU). */}
+        {franchise && franchise.parts?.length > 1 && (
+          <div class="page-section">
+            <MediaRow
+              title={franchise.name}
+              items={franchise.parts.filter((p) => p.tmdb_id !== item.tmdb_id)}
+              href={`/collection/${franchise.id}`}
             />
           </div>
         )}

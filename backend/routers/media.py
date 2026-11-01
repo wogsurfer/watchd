@@ -5389,21 +5389,22 @@ async def get_media_details(
             type,
             tmdb_key=tmdb_key,
         )
-        # A franchise TMDB splits up (the MCU) shows as Watchd's one collection.
+        # The film's own TMDB collection (Iron Man...), and for a franchise TMDB
+        # splits up, Watchd's collection of all of it (the MCU) as well.
         from core import franchises
-        coll_data = await franchises.collection_for(tmdb_id, tmdb_key) if type == MediaType.movie else None
-        if coll_data is None and raw_coll:
-            coll_data = await tmdb.get_collection(raw_coll["id"], api_key=tmdb_key)
+        coll_data, franchise_data = await asyncio.gather(
+            tmdb.get_collection(raw_coll["id"], api_key=tmdb_key) if raw_coll else asyncio.sleep(0),
+            franchises.collection_for(tmdb_id, tmdb_key) if type == MediaType.movie else asyncio.sleep(0),
+        )
 
-        collection = None
-        if coll_data:
-            collection = {
-                "id": coll_data.get("id"),
-                "name": coll_data.get("name"),
-                "poster_path": tmdb.poster_url(coll_data.get("poster_path")),
-                "backdrop_path": tmdb.poster_url(
-                    coll_data.get("backdrop_path"), size="original"
-                ),
+        def as_collection(data: dict | None) -> dict | None:
+            if not data:
+                return None
+            return {
+                "id": data.get("id"),
+                "name": data.get("name"),
+                "poster_path": tmdb.poster_url(data.get("poster_path")),
+                "backdrop_path": tmdb.poster_url(data.get("backdrop_path"), size="original"),
                 "parts": [
                     {
                         "tmdb_id": p.get("id"),
@@ -5414,12 +5415,15 @@ async def get_media_details(
                         "overview": p.get("overview"),
                         "adult": p.get("adult", False),
                     }
-                    for p in coll_data.get("parts", [])
+                    for p in data.get("parts", [])
                 ],
             }
 
-        if collection and collection.get("parts"):
-            await enrich_with_state(db, current_user.id, collection["parts"])
+        collection = as_collection(coll_data)
+        franchise = as_collection(franchise_data)
+        for c in (collection, franchise):
+            if c and c.get("parts"):
+                await enrich_with_state(db, current_user.id, c["parts"])
 
         # Your disc editions of a film, current and previous.
         discs = []
@@ -5463,6 +5467,7 @@ async def get_media_details(
             "user_rating": user_rating,
             "adult": data.get("adult", False),
             "collection": collection,
+            "franchise": franchise,
             "production_companies": production_companies,
             "production_countries": production_countries,
             # TMDB has 0 for unknown, so only real figures (US dollars).

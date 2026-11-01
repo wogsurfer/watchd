@@ -638,6 +638,8 @@ export interface MediaItem {
     backdrop_path: string | null;
     parts: MediaItem[];
   };
+  /** The whole franchise, where TMDB splits it up (the MCU); same shape as collection. */
+  franchise?: MediaItem["collection"] | null;
   production_companies?: ProductionCompany[];
   recommendations?: MediaItem[];
   release_dates?: { digital?: string | null; physical?: string | null } | null;
