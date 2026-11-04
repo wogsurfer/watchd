@@ -1,5 +1,5 @@
 ---
-// A network's TMDB logo on the dark detail-page header. Many logos are black
+// A network's or studio's TMDB logo on the dark detail-page header. Many logos are black
 // or have black lettering (NBC, HBO, FOX…), so the script below repaints their
 // dark, colourless pixels white and leaves coloured parts (NBC's peacock) alone.
 // A logo with white detail on black (ABC's letters in a black disc) would turn
@@ -17,7 +17,7 @@ const { src, name } = Astro.props;
     src={src}
     alt={name}
     title={name}
-    class="h-5 max-w-[80px] object-contain"
+    class="h-5 max-w-[110px] object-contain"
     data-network-logo
   />
 </div>
@@ -47,10 +47,11 @@ const { src, name } = Astro.props;
     const isDark = (i: number) => (neutral(i) && lumaAt(i) < 128) || lumaAt(i) < 40;
     const isLight = (i: number) => neutral(i) && lumaAt(i) >= 200;
 
-    let opaque = 0, dark = 0, light = 0;
+    let opaque = 0, dark = 0, light = 0, soft = 0;
     for (let i = 0; i < px.length; i += 4) {
       if (px[i + 3] < 16) continue;
       opaque++;
+      if (px[i + 3] < 128) soft++;
       if (isDark(i)) dark++;
       else if (isLight(i)) light++;
     }
@@ -66,8 +67,15 @@ const { src, name } = Astro.props;
         changed = true;
       }
     }
-    if (!changed) return;
+    // Hair-thin line art (Waypoint's constellation) is mostly soft edges, and
+    // fades away at header size: thicken its strokes before it's shrunk.
+    const thin = soft > opaque * 0.5;
+    if (!changed && !thin) return;
     ctx.putImageData(data, 0, 0);
+    if (thin) {
+      const r = Math.max(1, Math.round(w / 250));
+      for (const [dx, dy] of [[r, 0], [-r, 0], [0, r], [0, -r]]) ctx.drawImage(canvas, dx, dy);
+    }
     img.src = canvas.toDataURL("image/png");
   }
 

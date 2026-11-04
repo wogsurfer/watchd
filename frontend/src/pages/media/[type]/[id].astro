@@ -10,6 +10,7 @@ import SoundtrackList from "../../../components/SoundtrackList.astro";
 import { api, type MediaItem } from "../../../lib/api";
 import { utcIso, formatWatchDate, formatWatchTime } from "../../../lib/time";
 import OnDisc from "../../../components/OnDisc.astro";
+import NetworkLogo from "../../../components/NetworkLogo.astro";
 export const prerender = false;
 
 const { type, id } = Astro.params;
@@ -283,32 +284,7 @@ const money = (n: number) =>
               </div>
               {!isEpisode && (() => {
                 const company = item.production_companies?.find((entry) => entry.logo_path);
-                return company ? (
-                  <div class="bg-zinc-900/40 p-3 rounded-xl border border-zinc-800/50 backdrop-blur-sm flex items-center">
-                    <svg class="absolute h-0 w-0" aria-hidden="true" focusable="false">
-                      <defs>
-                        <filter id="white-black-studio-ink" color-interpolation-filters="sRGB">
-                          <feColorMatrix
-                            in="SourceGraphic"
-                            type="matrix"
-                            values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  -3 -3 -3 1 0"
-                            result="dark-ink-mask"
-                          />
-                          <feFlood flood-color="white" result="white-ink" />
-                          <feComposite in="white-ink" in2="dark-ink-mask" operator="in" result="recolored-ink" />
-                          <feComposite in="recolored-ink" in2="SourceGraphic" operator="over" />
-                        </filter>
-                      </defs>
-                    </svg>
-                    <img
-                      src={company.logo_path!}
-                      alt={company.name}
-                      title={company.name}
-                      class="h-5 max-w-[80px] object-contain [filter:url(#white-black-studio-ink)]"
-                      loading="lazy"
-                    />
-                  </div>
-                ) : null;
+                return company ? <NetworkLogo src={company.logo_path!} name={company.name} /> : null;
               })()}
             </div>
 
