@@ -674,7 +674,7 @@ const money = (n: number) =>
       if (!res.ok) return;
       const s = (await res.json()).scores || {};
       const parts: string[] = [];
-      if (s.tomatoes) parts.push(`<span class="mdb-score" style="color:#fa320a" title="Rotten Tomatoes critics (${s.tomatoes.votes ?? "?"} reviews)">${s.tomatoes.value >= 60 ? tomato : splat}${s.tomatoes.value}%</span>`);
+      if (s.tomatoes) parts.push(`<span class="mdb-score" style="color:#fa320a" title="Rotten Tomatoes critics${s.tomatoes.votes ? ` (${s.tomatoes.votes} reviews)` : ""}">${s.tomatoes.value >= 60 ? tomato : splat}${s.tomatoes.value}%</span>`);
       if (s.popcorn) parts.push(`<span class="mdb-score" style="color:#fa320a" title="Rotten Tomatoes audience">${popcorn}${s.popcorn.value}%</span>`);
       if (s.metacritic) parts.push(`<span class="mdb-score" title="Metacritic critics (${s.metacritic.votes ?? "?"} reviews)"><span class="mdb-mc" style="background:${mcColour(s.metacritic.value)}">${s.metacritic.value}</span></span>`);
       if (s.letterboxd) parts.push(`<span class="mdb-score" style="color:#e2e8f0" title="Letterboxd (out of 5)"><span class="mdb-lb"><i style="background:#ff8000"></i><i style="background:#00e054"></i><i style="background:#40bcf4"></i></span>${Number(s.letterboxd.value).toFixed(1)}</span>`);
