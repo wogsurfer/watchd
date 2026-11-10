@@ -585,14 +585,17 @@ const heroSubtitle =
 
   function ratingsBlock(block, noun, title) {
     if (!block || !block.count) return '';
+    // A row for each whole star, plus a half-star row (9.5) only where one
+    // has been used, so the 10 row matches the "10/10" count above it.
     const buckets = new Map();
     for (let r = 10; r >= 1; r--) buckets.set(r, 0);
     (block.distribution || []).forEach(d => {
-      const b = Math.min(10, Math.max(1, Math.round(d.rating)));
+      const b = Math.min(10, Math.max(1, Math.round(d.rating * 2) / 2));
       buckets.set(b, (buckets.get(b) || 0) + d.count);
     });
+    const ordered = [...buckets.entries()].sort((a, b) => b[0] - a[0]);
     const max = Math.max(...buckets.values(), 1);
-    const rows = [...buckets.entries()].map(([r, c]) =>
+    const rows = ordered.map(([r, c]) =>
       `<div class="ws-rate-row" data-tip="${r}/10: ${num(c)} ${noun}"><span class="k">${r} <i>★</i></span><div class="t"><div class="f" style="width:${c / max * 100}%"></div></div><span class="c">${num(c)}</span></div>`).join('');
     return H3(title)
       + metricRow([['Average Rating', dec(block.average, 2)], [`Rated ${noun}`, num(block.count)], [`10/10 ${noun}`, num(block.tens)]])
