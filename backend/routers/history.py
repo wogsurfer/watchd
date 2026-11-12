@@ -4,7 +4,7 @@ import time
 from datetime import datetime, UTC, date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, or_, select, desc, func, delete
+from sqlalchemy import and_, or_, select, desc, func, delete, update as sql_update
 from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import IntegrityError
 from db import get_db
@@ -1471,6 +1471,17 @@ class SeasonWatchRequest(BaseModel):
     series_tmdb_id: int
     season_number: int
     episode_order: str | None = None
+    # Where the season was watched, put on each play this adds.
+    watch_source: schemas.WatchSource | None = None
+
+
+class SeasonSourceUpdate(BaseModel):
+    series_tmdb_id: int
+    season_number: int
+    episode_order: str | None = None
+    watch_source: schemas.WatchSource | None = None
+    # Leave plays that already say where they were watched.
+    only_missing: bool = True
 
 
 class ShowWatchRequest(BaseModel):
@@ -1923,6 +1934,7 @@ async def mark_season_watched(
                 completed=True,
                 play_count=1,
                 progress_percent=1.0,
+                watch_source=body.watch_source,
             ))
             newly_watched.append(ep.id)
             
@@ -1938,20 +1950,14 @@ async def mark_season_watched(
     return {"status": "ok", "count": len(newly_watched)}
 
 
-@router.delete("/season")
-async def unwatch_season(
-    series_tmdb_id: int = Query(...),
-    season_number: int = Query(...),
-    episode_order: str | None = Query(None),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Remove all watch events for a season."""
+async def _season_episode_ids(
+    db: AsyncSession, series_tmdb_id: int, season_number: int, episode_order: str | None,
+) -> list[int]:
+    """The ids of a season's episodes Watchd has, in TMDB's or TVDB's numbering."""
     show_q = await db.execute(select(Show).where(Show.tmdb_id == series_tmdb_id))
     show = show_q.scalar_one_or_none()
     if not show:
-        return {"status": "ok", "count": 0}
-
+        return []
     media_filters = [
         Media.show_id == show.id,
         Media.media_type == MediaType.episode,
@@ -1971,13 +1977,70 @@ async def unwatch_season(
             for mapping in mapping_result.scalars().all()
         ]
         if not positions:
-            return {"status": "ok", "count": 0}
+            return []
         media_filters.append(or_(*positions))
     else:
         media_filters.append(Media.season_number == season_number)
-
     episodes_q = await db.execute(select(Media.id).where(*media_filters))
-    episode_ids = [row[0] for row in episodes_q.all()]
+    return [row[0] for row in episodes_q.all()]
+
+
+@router.get("/season-sources")
+async def season_sources(
+    series_tmdb_id: int = Query(...),
+    season_number: int = Query(...),
+    episode_order: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """A season's plays by where they were watched, for the season's Watched box."""
+    episode_ids = await _season_episode_ids(db, series_tmdb_id, season_number, episode_order)
+    if not episode_ids:
+        return {"plays": 0, "episodes_watched": 0, "sources": []}
+    rows = (await db.execute(
+        select(WatchEvent.watch_source, func.count(), func.count(func.distinct(WatchEvent.media_id)))
+        .where(WatchEvent.user_id == current_user.id, WatchEvent.media_id.in_(episode_ids))
+        .group_by(WatchEvent.watch_source)
+    )).all()
+    watched = (await db.execute(
+        select(func.count(func.distinct(WatchEvent.media_id)))
+        .where(WatchEvent.user_id == current_user.id, WatchEvent.media_id.in_(episode_ids))
+    )).scalar() or 0
+    sources = sorted(
+        ({"source": source, "plays": plays} for source, plays, _ in rows),
+        key=lambda s: (s["source"] is None, -s["plays"]),
+    )
+    return {"plays": sum(s["plays"] for s in sources), "episodes_watched": watched, "sources": sources}
+
+
+@router.patch("/season-source")
+async def set_season_source(
+    body: SeasonSourceUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Say where a season's plays were watched, all at once."""
+    episode_ids = await _season_episode_ids(db, body.series_tmdb_id, body.season_number, body.episode_order)
+    if not episode_ids:
+        return {"status": "ok", "count": 0}
+    filters = [WatchEvent.user_id == current_user.id, WatchEvent.media_id.in_(episode_ids)]
+    if body.only_missing:
+        filters.append(WatchEvent.watch_source.is_(None))
+    result = await db.execute(sql_update(WatchEvent).where(*filters).values(watch_source=body.watch_source))
+    await db.commit()
+    return {"status": "ok", "count": result.rowcount}
+
+
+@router.delete("/season")
+async def unwatch_season(
+    series_tmdb_id: int = Query(...),
+    season_number: int = Query(...),
+    episode_order: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove all watch events for a season."""
+    episode_ids = await _season_episode_ids(db, series_tmdb_id, season_number, episode_order)
     if not episode_ids:
         return {"status": "ok", "count": 0}
 

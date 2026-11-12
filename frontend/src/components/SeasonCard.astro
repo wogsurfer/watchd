@@ -51,6 +51,7 @@ const score = season.tmdb_rating != null && season.tmdb_rating > 0 ? season.tmdb
     data-tmdb-id={String(showTmdbId)}
     data-media-type="series"
     data-season={String(num)}
+    data-episode-total={String(total ?? 0)}
 >
 
     <div class="wd-panel">

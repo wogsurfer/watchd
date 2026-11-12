@@ -255,11 +255,14 @@ class WatchEventCreate(BaseModel):
     episode_number: Optional[int] = None
 
 
+WatchSource = Literal[
+    "Cinema", "Blu-ray", "4K", "DVD", "Cable", "VHS", "TV",
+    "Netflix", "Amazon", "Disney+", "AppleTV", "PLEX", "YouTube", "Digital file",
+]
+
+
 class WatchEventSourceUpdate(BaseModel):
-    watch_source: Optional[Literal[
-        "Cinema", "Blu-ray", "4K", "DVD", "Cable", "VHS", "TV",
-        "Netflix", "Amazon", "Disney+", "AppleTV", "PLEX", "YouTube", "Digital file",
-    ]] = None
+    watch_source: Optional[WatchSource] = None
 
 
 class ManualSessionStart(BaseModel):

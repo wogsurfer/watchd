@@ -1350,6 +1350,149 @@ const bottomNavItem = (active: boolean) =>
       });
     })();
 
+    // ── A season's Watched box: where its plays were watched, set all at once ──
+    const WATCH_SOURCES = ['Cinema', 'Blu-ray', '4K', 'DVD', 'Cable', 'VHS', 'TV', 'Netflix', 'Amazon', 'Disney+', 'AppleTV', 'PLEX', 'YouTube', 'Digital file'];
+
+    async function openSeasonWatchBox(btn: HTMLElement, seriesId: string, season: string, episodeOrder: string) {
+      document.getElementById('season-watch-box')?.remove();
+      const orderQuery = episodeOrder === 'tvdb' ? '&episode_order=tvdb' : '';
+      const label = season === '0' ? 'Specials' : `Season ${season}`;
+      const box = document.createElement('div');
+      box.id = 'season-watch-box';
+      box.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm';
+      const options = WATCH_SOURCES.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+      box.innerHTML = `
+        <div class="bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" role="dialog" aria-modal="true" aria-labelledby="season-watch-title">
+          <div class="px-5 pt-5 pb-4 border-b border-zinc-800 flex items-center justify-between gap-3">
+            <h3 id="season-watch-title" class="text-base font-bold text-zinc-100">${esc(label)} · Watched</h3>
+            <button type="button" data-season-close class="text-zinc-500 hover:text-zinc-200 transition cursor-pointer shrink-0" aria-label="Close">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div data-season-summary class="px-5 py-4 text-sm text-zinc-400">Loading…</div>
+          <div class="px-4 pt-3 pb-4 border-t border-zinc-800 space-y-2.5">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Watched via</p>
+            <label for="season-watch-source" class="sr-only">Watched via</label>
+            <select id="season-watch-source" class="w-full px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-sm text-zinc-200 focus:outline-none focus:border-green-500">
+              <option value="">Choose a source</option>${options}<option value="__none">No source (clear it)</option>
+            </select>
+            <label class="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer select-none">
+              <input type="checkbox" data-season-only-missing checked class="accent-green-500 w-4 h-4" />
+              Only plays that have no source yet
+            </label>
+            <button type="button" data-season-apply disabled class="w-full px-4 py-2.5 bg-green-600 hover:bg-green-500 text-white font-bold text-sm rounded-xl transition-all cursor-pointer active:scale-95 disabled:opacity-40 disabled:pointer-events-none">Set source</button>
+            <div class="flex gap-2 pt-1">
+              <button type="button" data-season-mark class="flex-1 px-3 py-2.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 font-bold text-sm rounded-xl transition-all cursor-pointer disabled:opacity-40 disabled:pointer-events-none">Mark season watched</button>
+              <button type="button" data-season-unmark class="hidden flex-1 px-3 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 font-bold text-sm rounded-xl transition-all cursor-pointer disabled:opacity-40 disabled:pointer-events-none">Mark unwatched</button>
+            </div>
+          </div>
+        </div>`;
+      document.body.appendChild(box);
+
+      const q = <T extends Element>(sel: string) => box.querySelector<T>(sel)!;
+      const summaryEl = q<HTMLElement>('[data-season-summary]');
+      const select = q<HTMLSelectElement>('#season-watch-source');
+      const onlyMissing = q<HTMLInputElement>('[data-season-only-missing]');
+      const applyBtn = q<HTMLButtonElement>('[data-season-apply]');
+      const markBtn = q<HTMLButtonElement>('[data-season-mark]');
+      const unmarkBtn = q<HTMLButtonElement>('[data-season-unmark]');
+      let info = { plays: 0, episodes_watched: 0, sources: [] as Array<{ source: string | null; plays: number }> };
+
+      const close = () => { box.remove(); document.removeEventListener('keydown', onKey); };
+      const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+      document.addEventListener('keydown', onKey);
+      box.addEventListener('click', (e) => {
+        if (e.target === box || (e.target as Element).closest('[data-season-close]')) close();
+      });
+
+      const total = Number(btn.closest<HTMLElement>('[data-card]')?.querySelector('[data-episode-total]')?.getAttribute('data-episode-total') || 0);
+      const missingPlays = () => info.sources.find(s => !s.source)?.plays ?? 0;
+      const refreshApply = () => {
+        const n = onlyMissing.checked ? missingPlays() : info.plays;
+        applyBtn.disabled = !select.value || n === 0;
+        applyBtn.textContent = n === 0
+          ? (info.plays === 0 ? 'No plays to set yet' : 'Every play already has a source')
+          : `Set source on ${n} play${n === 1 ? '' : 's'}`;
+      };
+
+      async function load() {
+        summaryEl.textContent = 'Loading…';
+        try {
+          info = await apiFetch(`/history/season-sources?series_tmdb_id=${seriesId}&season_number=${season}${orderQuery}`);
+        } catch {
+          summaryEl.innerHTML = '<span class="text-red-400">Couldn\'t load this season\'s plays</span>';
+          return;
+        }
+        const eps = info.episodes_watched;
+        const head = info.plays === 0
+          ? 'No episodes of this season watched yet.'
+          : `${eps}${total ? ` of ${total}` : ''} episode${eps === 1 ? '' : 's'} watched · ${info.plays} play${info.plays === 1 ? '' : 's'}`;
+        const chips = info.sources.map(s => `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${s.source ? 'bg-zinc-800 text-zinc-200' : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'}">${esc(s.source || 'No source')}<span class="text-zinc-500">${s.plays}</span></span>`).join('');
+        summaryEl.innerHTML = `<p class="text-zinc-200 font-semibold">${esc(head)}</p>${chips ? `<div class="flex flex-wrap gap-1.5 mt-3">${chips}</div>` : ''}`;
+        unmarkBtn.classList.toggle('hidden', info.plays === 0);
+        markBtn.disabled = total > 0 && eps >= total;
+        markBtn.textContent = eps > 0 ? 'Mark the rest watched' : 'Mark season watched';
+        refreshApply();
+      }
+
+      const syncCard = (watched: boolean) => {
+        updateWatchedButtonUI(btn, watched);
+        const attr = episodeOrder === 'tvdb' ? 'data-display-season' : 'data-season';
+        document.querySelectorAll(`[data-card][data-media-type="episode"][data-show-tmdb-id="${seriesId}"][${attr}="${season}"] [data-action="watched"]`)
+          .forEach(b => updateWatchedButtonUI(b as HTMLElement, watched));
+      };
+
+      select.addEventListener('change', refreshApply);
+      onlyMissing.addEventListener('change', refreshApply);
+
+      applyBtn.addEventListener('click', async () => {
+        applyBtn.disabled = true;
+        applyBtn.textContent = 'Saving…';
+        try {
+          const r = await apiFetch('/history/season-source', 'PATCH', {
+            series_tmdb_id: Number(seriesId),
+            season_number: Number(season),
+            episode_order: episodeOrder === 'tvdb' ? 'tvdb' : null,
+            watch_source: select.value === '__none' ? null : select.value,
+            only_missing: onlyMissing.checked,
+          });
+          await load();
+          applyBtn.textContent = `Saved on ${r.count} play${r.count === 1 ? '' : 's'}`;
+          setTimeout(refreshApply, 1800);
+        } catch {
+          applyBtn.textContent = "Couldn't save";
+          setTimeout(refreshApply, 1800);
+        }
+      });
+
+      markBtn.addEventListener('click', async () => {
+        markBtn.disabled = true;
+        markBtn.textContent = 'Saving…';
+        try {
+          const body: Record<string, unknown> = { series_tmdb_id: Number(seriesId), season_number: Number(season) };
+          if (episodeOrder === 'tvdb') body.episode_order = 'tvdb';
+          if (select.value && select.value !== '__none') body.watch_source = select.value;
+          await apiFetch('/history/season', 'POST', body);
+          syncCard(true);
+        } catch { /* load() resets the button */ }
+        await load();
+      });
+
+      unmarkBtn.addEventListener('click', async () => {
+        const ok = await showConfirm('Mark season as unwatched?', 'This will remove all watch events for every episode in this season.');
+        if (!ok) return;
+        unmarkBtn.disabled = true;
+        try {
+          await apiFetch(`/history/season?series_tmdb_id=${seriesId}&season_number=${season}${orderQuery}`, 'DELETE');
+          syncCard(false);
+        } catch { /* load() shows what's there */ }
+        unmarkBtn.disabled = false;
+        await load();
+      });
+
+      await load();
+    }
+
     // ── Main event delegation ──────────────────────────────────────────────────
     document.addEventListener('click', async (e) => {
       const target = e.target as Element;
@@ -1383,6 +1526,11 @@ const bottomNavItem = (active: boolean) =>
 
         if (mediaType === 'movie' || mediaType === 'episode') {
           await openWatchHistoryModal(btn, tmdbId, mediaType, card.dataset.showTmdbId || '', card.dataset.season || '', card.dataset.episodeNumber || '');
+          return;
+        }
+        // A season opens its own box: where its plays were watched, and marking it.
+        if (mediaType === 'series' && season) {
+          await openSeasonWatchBox(btn, seriesId, season, episodeOrder);
           return;
         }
 
