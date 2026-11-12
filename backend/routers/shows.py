@@ -283,6 +283,30 @@ async def _enrich_tvdb_seasons(
     return enriched, tmdb_show
 
 
+def keep_chosen_season_posters(old_seasons: list | None, new_seasons: list) -> list:
+    """Carry a season poster picked by hand (marked poster_locked, e.g. where
+    TMDB's only one is a foreign DVD cover) over a refresh from TMDB."""
+    chosen = {
+        s.get("season_number"): s["poster_path"]
+        for s in old_seasons or []
+        if isinstance(s, dict) and s.get("poster_locked") and s.get("poster_path")
+    }
+    for s in new_seasons:
+        if s.get("season_number") in chosen:
+            s["poster_path"] = chosen[s["season_number"]]
+            s["poster_locked"] = True
+    return new_seasons
+
+
+def outside_hidden(item: dict | None, hidden: list) -> dict | None:
+    """A season or episode from TMDB, or None when it sits in a season taken
+    out of the show by hand (tmdb_data.hidden_seasons, e.g. a spin-off TMDB
+    filed as a season, like Red vs. Blue's Family Shatters)."""
+    if not item or item.get("season_number") in hidden:
+        return None
+    return item
+
+
 def format_show(show: ShowModel) -> dict:
     return {
         "id": show.id,
@@ -2820,6 +2844,7 @@ async def refresh_show_metadata(
     show.tvdb_id = data.get("external_ids", {}).get("tvdb_id") or show.tvdb_id
     show.first_air_date = data.get("first_air_date")
     show.last_air_date = data.get("last_air_date")
+    hidden = (show.tmdb_data or {}).get("hidden_seasons") or []
     show.tmdb_data = {
         **(show.tmdb_data or {}),
         "genres": [g["name"] for g in data.get("genres", [])],
@@ -2829,19 +2854,23 @@ async def refresh_show_metadata(
         ),
         "original_language": data.get("original_language"),
         "networks": data.get("networks", []),
-        "last_episode_to_air": data.get("last_episode_to_air"),
-        "next_episode_to_air": data.get("next_episode_to_air"),
-        "seasons": [
-            {
-                "season_number": s["season_number"],
-                "poster_path": tmdb.poster_url(s.get("poster_path")),
-                "episode_count": s["episode_count"],
-                "name": s["name"],
-                "air_date": s.get("air_date"),
-                "overview": s.get("overview"),
-            }
-            for s in data.get("seasons", [])
-        ],
+        "last_episode_to_air": outside_hidden(data.get("last_episode_to_air"), hidden),
+        "next_episode_to_air": outside_hidden(data.get("next_episode_to_air"), hidden),
+        "seasons": keep_chosen_season_posters(
+            (show.tmdb_data or {}).get("seasons"),
+            [
+                {
+                    "season_number": s["season_number"],
+                    "poster_path": tmdb.poster_url(s.get("poster_path")),
+                    "episode_count": s["episode_count"],
+                    "name": s["name"],
+                    "air_date": s.get("air_date"),
+                    "overview": s.get("overview"),
+                }
+                for s in data.get("seasons", [])
+                if outside_hidden(s, hidden)
+            ],
+        ),
     }
 
     # Re-enrich all local episodes linked to this show
@@ -3854,7 +3883,12 @@ async def get_episode_strip(
     if not check_tmdb_key(api_key):
         raise HTTPException(status_code=400, detail="TMDB API key not configured")
     data = await tmdb.get_show_light(series_tmdb_id, api_key=api_key)
-    numbers = sorted(s["season_number"] for s in data.get("seasons") or [] if (s.get("season_number") or 0) > 0)
+    show = (await db.execute(select(ShowModel).where(ShowModel.tmdb_id == series_tmdb_id))).scalar_one_or_none()
+    hidden = ((show.tmdb_data or {}).get("hidden_seasons") or []) if show else []
+    numbers = sorted(
+        s["season_number"] for s in data.get("seasons") or []
+        if (s.get("season_number") or 0) > 0 and s["season_number"] not in hidden
+    )
     if not numbers:
         return {"next": None, "recent": []}
     seasons = await asyncio.gather(
@@ -3890,7 +3924,6 @@ async def get_episode_strip(
     recent = list(reversed(past[-2:] if nxt else past[-3:]))
 
     # What you've watched, and each episode's own IMDb rating, from Watchd's episodes.
-    show = (await db.execute(select(ShowModel).where(ShowModel.tmdb_id == series_tmdb_id))).scalar_one_or_none()
     local: dict = {}
     watched: set = set()
     if show:

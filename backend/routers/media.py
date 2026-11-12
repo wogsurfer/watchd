@@ -208,6 +208,24 @@ async def add_imdb_ratings(db: AsyncSession, user_id: int, items: list[dict], wa
         task.add_done_callback(_background_tasks.discard)
 
 
+def without_hidden_seasons(show: dict, hidden: list) -> dict:
+    """A TMDB show record with the seasons taken out by hand removed. When
+    TMDB's last aired episode is in one, the last episode of the latest season
+    left before it stands in."""
+    if not hidden:
+        return show
+    seasons = [s for s in show.get("seasons") or [] if s.get("season_number") not in hidden]
+    last = show.get("last_episode_to_air") or {}
+    if last.get("season_number") in hidden:
+        earlier = [
+            s for s in seasons
+            if 0 < (s.get("season_number") or 0) < last["season_number"] and s.get("episode_count")
+        ]
+        top = max(earlier, key=lambda s: s["season_number"], default=None)
+        last = {"season_number": top["season_number"], "episode_number": top["episode_count"]} if top else None
+    return {**show, "seasons": seasons, "last_episode_to_air": last}
+
+
 async def enrich_with_state(
     db: AsyncSession,
     user_id: int,
@@ -401,14 +419,21 @@ async def enrich_with_state(
         # Just the season list: the whole stored TMDB record (cast and all)
         # is large, and loading it for hundreds of shows took seconds.
         shows_meta_q = await db.execute(
-            select(ShowModel.tmdb_id, ShowModel.tmdb_data["seasons"], ShowModel.status)
+            select(
+                ShowModel.tmdb_id, ShowModel.tmdb_data["seasons"], ShowModel.status,
+                ShowModel.tmdb_data["hidden_seasons"],
+            )
             .where(ShowModel.tmdb_id.in_(show_tmdb_ids))
         )
         total_map: dict[int, int] = {}
         show_status_map: dict[int, str] = {}
         show_seasons_map: dict[int, list] = {}
+        # Seasons taken out of a show by hand (a spin-off TMDB files as a season).
+        hidden_seasons_map: dict[int, list] = {}
 
-        for show_tmdb_id, seasons, status in shows_meta_q.all():
+        for show_tmdb_id, seasons, status, hidden in shows_meta_q.all():
+            if hidden:
+                hidden_seasons_map[show_tmdb_id] = hidden
             seasons = seasons or []
             show_status_map[show_tmdb_id] = status or ""
             show_seasons_map[show_tmdb_id] = seasons
@@ -533,9 +558,9 @@ async def enrich_with_state(
 
             async def fetch_aired_count(tid: int):
                 try:
-                    show = await tmdb.get_show_light(
-                        tid,
-                        api_key=tmdb_key,
+                    show = without_hidden_seasons(
+                        await tmdb.get_show_light(tid, api_key=tmdb_key),
+                        hidden_seasons_map.get(tid) or [],
                     )
 
                     total_aired = 0
