@@ -2303,8 +2303,9 @@ async def start_manual_session(
     """Start a manual scrobble session for any movie or episode."""
     media = await _get_or_create_media_for_session(db, body, current_user.id)
 
-    if media.runtime is None and body.runtime:
-        media.runtime = body.runtime
+    if media.runtime is None:
+        stored = (media.tmdb_data or {}).get("runtime")
+        media.runtime = (stored if isinstance(stored, int) and stored > 0 else None) or body.runtime
 
     session_key = f"manual-{current_user.id}-{media.id}"
 

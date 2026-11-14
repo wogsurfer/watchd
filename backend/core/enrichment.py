@@ -54,6 +54,8 @@ async def enrich_media(media: Media, api_key: str = None, series_tmdb_id: int = 
             media.backdrop_path = tmdb.poster_url(data.get("backdrop_path"), size="w1280")
             media.release_date = data.get("release_date")
             media.tmdb_rating = data.get("vote_average")
+            # Now Watching times a manual session from this column.
+            media.runtime = data.get("runtime") or media.runtime
             media.tmdb_data = {
                 "runtime": data.get("runtime"),
                 "genres": [g["name"] for g in data.get("genres", [])],
@@ -103,6 +105,7 @@ async def enrich_media(media: Media, api_key: str = None, series_tmdb_id: int = 
             media.poster_path = tmdb.poster_url(data.get("still_path"), size="w500")
             media.release_date = data.get("air_date")
             media.tmdb_rating = data.get("vote_average")
+            media.runtime = data.get("runtime") or media.runtime
             media.tmdb_data = {
                 "runtime": data.get("runtime"),
                 "cast": [
