@@ -1929,63 +1929,46 @@ async def get_show(
                 for ep_list in seasons.values():
                     apply_media_translations(ep_list, ep_trans)
 
-                # First and last time the user watched this show
-                watch_dates_q = await db.execute(
-                    select(
-                        func.min(WatchEvent.watched_at),
-                        func.max(WatchEvent.watched_at),
-                    )
-                    .join(Media, Media.id == WatchEvent.media_id)
-                    .join(ShowModel, ShowModel.id == Media.show_id)
-                    .where(
-                        WatchEvent.user_id == current_user.id,
-                        WatchEvent.completed.is_(True),
-                        ShowModel.tmdb_id == series_tmdb_id,
-                        Media.media_type == MediaType.episode,
-                        Media.season_number.isnot(None),
-                        Media.episode_number.isnot(None),
-                    )
-                )
-                watch_start_date, watch_end_date = watch_dates_q.one()
-                # First and last time the user watched this show
-                watch_dates_q = await db.execute(
-                    select(
-                        func.min(WatchEvent.watched_at),
-                        func.max(WatchEvent.watched_at),
-                    )
-                    .join(Media, Media.id == WatchEvent.media_id)
-                    .join(ShowModel, ShowModel.id == Media.show_id)
-                    .where(
-                        WatchEvent.user_id == current_user.id,
-                        WatchEvent.completed.is_(True),
-                        ShowModel.tmdb_id == series_tmdb_id,
-                        Media.media_type == MediaType.episode,
-                        Media.season_number.isnot(None),
-                        Media.episode_number.isnot(None),
-                    )
-                )
-                watch_start_date, watch_end_date = watch_dates_q.one()
 
-                watch_sources_q = await db.execute(
-                    select(WatchEvent.watch_source)
-                    .join(Media, Media.id == WatchEvent.media_id)
-                    .join(ShowModel, ShowModel.id == Media.show_id)
-                    .where(
-                        WatchEvent.user_id == current_user.id,
-                        WatchEvent.completed.is_(True),
-                        ShowModel.tmdb_id == series_tmdb_id,
-                        Media.media_type == MediaType.episode,
-                        WatchEvent.watched_at.isnot(None),
-                        WatchEvent.watch_source.isnot(None),
-                    )
-                    .distinct()
-                    .order_by(WatchEvent.watch_source.asc())
-                )
+        # First and last time the user watched this show
+        watch_dates_q = await db.execute(
+            select(
+                func.min(WatchEvent.watched_at),
+                func.max(WatchEvent.watched_at),
+            )
+            .join(Media, Media.id == WatchEvent.media_id)
+            .join(ShowModel, ShowModel.id == Media.show_id)
+            .where(
+                WatchEvent.user_id == current_user.id,
+                WatchEvent.completed.is_(True),
+                ShowModel.tmdb_id == series_tmdb_id,
+                Media.media_type == MediaType.episode,
+                Media.season_number.isnot(None),
+                Media.episode_number.isnot(None),
+            )
+        )
+        watch_start_date, watch_end_date = watch_dates_q.one()
 
-                watch_sources = [
-                    source for source in watch_sources_q.scalars().all()
-                    if source
-                ]
+        watch_sources_q = await db.execute(
+            select(WatchEvent.watch_source)
+            .join(Media, Media.id == WatchEvent.media_id)
+            .join(ShowModel, ShowModel.id == Media.show_id)
+            .where(
+                WatchEvent.user_id == current_user.id,
+                WatchEvent.completed.is_(True),
+                ShowModel.tmdb_id == series_tmdb_id,
+                Media.media_type == MediaType.episode,
+                WatchEvent.watched_at.isnot(None),
+                WatchEvent.watch_source.isnot(None),
+            )
+            .distinct()
+            .order_by(WatchEvent.watch_source.asc())
+        )
+
+        watch_sources = [
+            source for source in watch_sources_q.scalars().all()
+            if source
+        ]
 
 
         show_dict = format_show(show)
