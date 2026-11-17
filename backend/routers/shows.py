@@ -24,7 +24,7 @@ from models.show import Show as ShowModel
 from models.sync import SyncJob, SyncStatus
 from models.users import User, UserSettings
 from models.episode_order import EpisodeOrderMapping, UserShowEpisodeOrder
-from routers.media import format_media, get_user_tmdb_key, check_tmdb_key, enrich_with_state, refresh_technical_data, _extract_show_content_rating, get_where_to_watch, _effective_sonarr, _get_global_settings
+from routers.media import format_media, get_user_tmdb_key, check_tmdb_key, enrich_with_state, refresh_technical_data, _extract_show_content_rating, get_where_to_watch, _effective_sonarr, _get_global_settings, _shared_settings
 
 from dependencies import get_current_user
 from core.episode_badges import last_season, season_badges
@@ -3367,7 +3367,7 @@ async def get_tvdb_show(
     watch_pct = int(total_watch_pct / non_special_seasons) if non_special_seasons else 0
 
     # Sonarr state
-    gs = await _get_global_settings(db)
+    gs = _shared_settings(current_user, await _get_global_settings(db))
     settings_q = await db.execute(select(UserSettings).where(UserSettings.user_id == current_user.id))
     settings = settings_q.scalar_one_or_none()
     sonarr_cfg = _effective_sonarr(settings, gs)

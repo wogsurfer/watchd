@@ -198,7 +198,8 @@ async def _watchlist_poller():
         from models.connections import MediaServerConnection
         from models.users import UserSettings
         from models.global_settings import GlobalSettings
-        from routers.media import _effective_radarr, _effective_sonarr
+        from routers.media import _effective_radarr, _effective_sonarr, _shared_settings
+        from models.users import User
         from core import plex as plex_client
         from core import radarr as radarr_client
         from core import sonarr as sonarr_client
@@ -232,7 +233,7 @@ async def _watchlist_poller():
                         )
                         user_settings = settings_q.scalar_one_or_none()
                         gs_q = await db.execute(select(GlobalSettings).where(GlobalSettings.id == 1))
-                        global_settings = gs_q.scalar_one_or_none()
+                        global_settings = _shared_settings(await db.get(User, conn.user_id), gs_q.scalar_one_or_none())
 
                         radarr_cfg = _effective_radarr(user_settings, global_settings) if conn.watchlist_to_radarr else None
                         sonarr_cfg = _effective_sonarr(user_settings, global_settings) if conn.watchlist_to_sonarr else None

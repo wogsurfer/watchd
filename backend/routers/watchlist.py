@@ -14,7 +14,7 @@ from models.users import User
 from services.media_service import get_or_create_movie
 from models.users import UserSettings
 from models.global_settings import GlobalSettings
-from routers.media import _effective_radarr
+from routers.media import _effective_radarr, _shared_settings
 from core import radarr as radarr_client
 from core import tmdb
 from routers.media import enrich_with_state
@@ -180,7 +180,7 @@ async def recently_downloaded(
     Watchlist, so these are films you asked for."""
     from datetime import timedelta, timezone
     user_settings = (await db.execute(select(UserSettings).where(UserSettings.user_id == current_user.id))).scalar_one_or_none()
-    global_settings = (await db.execute(select(GlobalSettings).where(GlobalSettings.id == 1))).scalar_one_or_none()
+    global_settings = _shared_settings(current_user, (await db.execute(select(GlobalSettings).where(GlobalSettings.id == 1))).scalar_one_or_none())
     cfg = _effective_radarr(user_settings, global_settings)
     if not cfg:
         return []
@@ -230,7 +230,7 @@ async def radarr_list(
     if not user:
         raise HTTPException(status_code=401, detail="Unknown API key")
     user_settings = (await db.execute(select(UserSettings).where(UserSettings.user_id == user.id))).scalar_one_or_none()
-    global_settings = (await db.execute(select(GlobalSettings).where(GlobalSettings.id == 1))).scalar_one_or_none()
+    global_settings = _shared_settings(user, (await db.execute(select(GlobalSettings).where(GlobalSettings.id == 1))).scalar_one_or_none())
     cfg = _effective_radarr(user_settings, global_settings)
     if not cfg:
         raise HTTPException(status_code=400, detail="Radarr isn't set up in Watchd")
@@ -326,7 +326,7 @@ async def add_to_watchlist(
                 GlobalSettings.id == 1
             )
         )
-        global_settings = global_q.scalar_one_or_none()
+        global_settings = _shared_settings(current_user, global_q.scalar_one_or_none())
 
         radarr_cfg = _effective_radarr(
             user_settings,

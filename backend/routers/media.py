@@ -268,7 +268,7 @@ async def enrich_with_state(
     # --- Radarr / Sonarr state (Request button logic) ---
     settings_q = await db.execute(select(UserSettings).where(UserSettings.user_id == user_id))
     settings = settings_q.scalar_one_or_none()
-    gs = await _get_global_settings(db)
+    gs = _shared_settings(await db.get(User, user_id), await _get_global_settings(db))
 
     monitored_status = {} # tmdb_id -> bool
     request_enabled_map = {} # tmdb_id -> bool
@@ -773,6 +773,13 @@ async def get_user_tmdb_key(db: AsyncSession, user_id: int) -> str | None:
             gs = await _get_global_settings(db)
             db.info[cache_key] = gs.tmdb_api_key if gs else None
     return db.info[cache_key]
+
+
+def _shared_settings(user: User | None, global_settings: GlobalSettings | None) -> GlobalSettings | None:
+    """The server-wide Radarr/Sonarr connection, for the accounts allowed to
+    use it. It is the install owner's, so only admins fall back to it; other
+    accounts use Radarr/Sonarr only if they set up their own."""
+    return global_settings if user is not None and user.is_admin else None
 
 
 def _effective_radarr(user_settings: UserSettings | None, global_settings: GlobalSettings | None):
@@ -3498,7 +3505,7 @@ async def get_request_status(
     """Check whether a movie/series is already monitored in Radarr/Sonarr."""
     settings_q = await db.execute(select(UserSettings).where(UserSettings.user_id == current_user.id))
     settings = settings_q.scalar_one_or_none()
-    gs = await _get_global_settings(db)
+    gs = _shared_settings(current_user, await _get_global_settings(db))
 
     monitored = False
 
@@ -3566,7 +3573,7 @@ async def request_media(
         select(UserSettings).where(UserSettings.user_id == current_user.id)
     )
     settings = settings_q.scalar_one_or_none()
-    gs = await _get_global_settings(db)
+    gs = _shared_settings(current_user, await _get_global_settings(db))
 
     async def _upsert_request(media_type_str: str, title: str, poster_path: str | None) -> dict:
         """Create or update a pending media request, return 202 response."""
