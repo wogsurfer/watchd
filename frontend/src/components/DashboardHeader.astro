@@ -3,6 +3,7 @@ import { tmdbImageUrl } from "../lib/api";
 import { getHoliday } from "../lib/holiday";
 
 const { posters = [], stats } = Astro.props;
+const greeting = stats?.greeting as { name?: string; since?: number | null } | undefined;
 const holiday = await getHoliday(Astro);
 
 function formatDuration(minutes: number) {
@@ -37,9 +38,9 @@ function formatDuration(minutes: number) {
 
       <div class="dashboard-greeting">
 
-        <h1>Hello, David</h1>
+        <h1>Hello{greeting?.name ? `, ${greeting.name}` : ""}</h1>
 
-        <p>WATCHING SINCE 1989</p>
+        {greeting?.since && <p>WATCHING SINCE {greeting.since}</p>}
         {holiday && <p class="holiday-greeting">{holiday.greeting}</p>}
 
       </div>

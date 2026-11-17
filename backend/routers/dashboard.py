@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.watchlist import MovieWatchlist
 
 from db import get_db
-from dependencies import get_current_user
+from dependencies import get_current_user, require_admin
 from models.users import User
 from models.media import Media
 from models.events import WatchEvent
@@ -136,7 +136,21 @@ async def dashboard_stats(
     )
     owned_counts[True] = len({(series or in_set or title).strip().lower() for series, in_set, title in tv_discs.all()})
 
+    # The greeting: the account's display name (or username), and the year
+    # of its first recorded play ("watching since").
+    from models.profile import UserProfileData
+    display_name = (await db.execute(
+        select(UserProfileData.display_name).where(UserProfileData.user_id == current_user.id)
+    )).scalar_one_or_none()
+    first_play = (await db.execute(
+        select(func.min(WatchEvent.watched_at)).where(WatchEvent.user_id == current_user.id)
+    )).scalar_one_or_none()
+
     return {
+        "greeting": {
+            "name": display_name or current_user.username,
+            "since": first_play.year if first_play else None,
+        },
         "tv": {
             "minutes": int(tv_minutes),
             "episodes": episodes,
@@ -245,6 +259,7 @@ async def trakt_runtime_test(
 @router.get("/last30")
 async def dashboard_last30(
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
 
     cutoff = datetime.now() - timedelta(days=30)
@@ -264,7 +279,7 @@ async def dashboard_last30(
             Media.show_id == Show.id,
         )
         .where(
-            WatchEvent.user_id == 1,
+            WatchEvent.user_id == current_user.id,
             WatchEvent.watched_at >= cutoff,
             WatchEvent.completed.is_(True),
         )
@@ -428,7 +443,7 @@ async def genre_test(
 from services.emby.client import EmbyClient
 
 @router.get("/emby-libraries")
-async def emby_libraries(current_user: User = Depends(get_current_user)):
+async def emby_libraries(current_user: User = Depends(require_admin)):
     client = EmbyClient()
     return await client.get("/Library/VirtualFolders")
 
@@ -436,7 +451,7 @@ from services.emby.client import EmbyClient
 
 
 @router.get("/emby-user")
-async def emby_user(current_user: User = Depends(get_current_user)):
+async def emby_user(current_user: User = Depends(require_admin)):
     client = EmbyClient()
 
     return await client.get("/Users")
@@ -446,7 +461,7 @@ from services.emby.sync import EmbySync
 @router.post("/library-sync")
 async def library_sync(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     sync = EmbySync(db)
 

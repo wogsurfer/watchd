@@ -205,12 +205,13 @@ private fun HeroHeader(header: Header?, openCollection: () -> Unit, openHistory:
         Column(Modifier.statusBarsPadding().padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 12.dp)) {
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
-                    // As on the site, which also greets David by name.
-                    Text("Hello, David", fontSize = 28.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("WATCHING SINCE 1989", color = Watchd.Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    // As on the site: the account's name and the year of its first play.
+                    val greeting = header?.totals?.greeting
+                    Text(greeting?.name?.let { "Hello, $it" } ?: "Hello", fontSize = 28.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    greeting?.since?.let { Text("WATCHING SINCE $it", color = Watchd.Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp) }
                     Watchd.holiday?.let { Text(it.greeting, color = Watchd.Red, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 4.dp)) }
                 }
-                header?.health?.let { DownloadsChip(it) }
+                header?.health?.takeIf { it.status != "off" }?.let { DownloadsChip(it) }
             }
             val totals = header?.totals
             Column(Modifier.padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

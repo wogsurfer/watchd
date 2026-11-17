@@ -41,6 +41,18 @@ if (statsMode === "profile") {
   accessError = "Please log in to view your statistics.";
 }
 
+// "1989 → 2026": the year of this account's first recorded play.
+let sinceYear: number | null = null;
+if (statsMode === "all-time" && token) {
+  try {
+    const res = await fetch(
+      `http://localhost:${import.meta.env.BACKEND_PORT ?? "7331"}/dashboard/stats`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (res.ok) sinceYear = (await res.json())?.greeting?.since ?? null;
+  } catch {}
+}
+
 const todayLabel = new Date()
   .toLocaleDateString("en-US", { month: "short", day: "numeric" })
   .toUpperCase();
@@ -59,7 +71,7 @@ const heroSubtitle =
     ? `${statsYear} STATS · JAN 1 → DEC 31`
     : statsMode === "ytd"
       ? `${nowYear} STATS · JAN 1 → ${todayLabel}`
-      : `1989 → ${nowYear} STATS`;
+      : sinceYear ? `${sinceYear} → ${nowYear} STATS` : "ALL TIME STATS";
 ---
 
 <style is:global>

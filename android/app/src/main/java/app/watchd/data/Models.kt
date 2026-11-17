@@ -522,7 +522,12 @@ data class Totals(
     val tv: TvTotals = TvTotals(),
     val movies: FilmTotals = FilmTotals(),
     val library: LibraryTotals = LibraryTotals(),
+    val greeting: Greeting? = null,
 )
+
+/** "Hello, <name>" and "WATCHING SINCE <year of first play>" on the dashboard. */
+@Serializable
+data class Greeting(val name: String? = null, val since: Int? = null)
 
 @Serializable
 data class NamedCount(val name: String, val count: Int = 0)
