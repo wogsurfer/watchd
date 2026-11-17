@@ -117,5 +117,57 @@ class ParseJellyfinUserDataSavedPayloadTests(unittest.TestCase):
         self.assertEqual(data["save_reason"], "PlaybackProgress")
 
 
+class MultiEpisodeFileTests(IsolatedAsyncioTestCase):
+    """A file Emby files as S04E01-E02 (IndexNumberEnd) is one play of two
+    episodes, and both should be tracked."""
+
+    def _emby_payload(self, start, end=None, position=0, runtime=600):
+        item = {"Type": "Episode", "Id": "e1", "Name": "Yanks in the U.K. (1)", "SeriesName": "Bones",
+                "ParentIndexNumber": 4, "IndexNumber": start, "RunTimeTicks": runtime * 10_000_000}
+        if end is not None:
+            item["IndexNumberEnd"] = end
+        return {"Event": "playback.stop", "Item": item,
+                "PlaybackInfo": {"PositionTicks": position * 10_000_000}}
+
+    def test_parser_keeps_the_last_episode_number(self):
+        data = parse_jellyfin_payload(self._emby_payload(1, 2))
+        self.assertEqual(data["episode_number_end"], 2)
+        self.assertEqual(webhooks._episode_span(data), 2)
+
+    def test_single_episode_files_span_one(self):
+        self.assertEqual(webhooks._episode_span(parse_jellyfin_payload(self._emby_payload(3))), 1)
+        self.assertEqual(webhooks._episode_span(parse_jellyfin_payload(self._emby_payload(3, 3))), 1)
+        self.assertEqual(webhooks._episode_span({"media_type": "movie", "episode_number": 1, "episode_number_end": 2}), 1)
+
+    def test_progress_is_split_evenly_between_the_episodes(self):
+        # 60% through a two-parter: the first is finished, the second 20% in.
+        self.assertEqual(webhooks._part_progress(0.6, 3600, 0, 2), (1.0, 3000))
+        self.assertEqual(webhooks._part_progress(0.6, 3600, 1, 2), (0.2, 600))
+        # Fully watched: both finished.
+        self.assertEqual(webhooks._part_progress(1.0, 6000, 1, 2)[0], 1.0)
+        # Single-episode files are unchanged.
+        self.assertEqual(webhooks._part_progress(0.42, 100, 0, 1), (0.42, 100))
+
+    async def test_parts_are_found_by_show_season_and_number(self):
+        first = type("M", (), {"id": 10, "show_id": None})()
+        second = type("M", (), {"id": 11, "show_id": None})()
+        asked = []
+
+        async def fake_find(data, db, api_key=None):
+            asked.append((data["season_number"], data["episode_number"], data["jellyfin_id"], data["tmdb_id"]))
+            return second
+
+        original = webhooks.find_or_create_media_jellyfin
+        webhooks.find_or_create_media_jellyfin = fake_find
+        try:
+            data = parse_jellyfin_payload(self._emby_payload(1, 2))
+            parts = await webhooks._episode_parts(None, first, data, None)
+        finally:
+            webhooks.find_or_create_media_jellyfin = original
+        self.assertEqual([p.id for p in parts], [10, 11])
+        # The second episode is looked up by number, not by the first one's ids.
+        self.assertEqual(asked, [(4, 2, None, None)])
+
+
 if __name__ == "__main__":
     unittest.main()
