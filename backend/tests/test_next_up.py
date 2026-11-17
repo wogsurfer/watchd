@@ -4,7 +4,7 @@ import unittest
 os.environ.setdefault("SECRET_KEY", "test-secret")
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://test:test@localhost/test")
 
-from routers.history import _compute_next_episode
+from routers.history import _compute_next_episode, _skips_ahead
 
 
 class ComputeNextEpisodeTests(unittest.TestCase):
@@ -38,6 +38,24 @@ class ComputeNextEpisodeTests(unittest.TestCase):
     def test_specials_season_zero_is_never_returned_and_never_used_as_current(self):
         seasons = [{"season_number": 0, "episode_count": 5}, {"season_number": 1, "episode_count": 12}]
         self.assertEqual(_compute_next_episode(seasons, 0, 3), (1, 1))
+
+
+class SkipsAheadTests(unittest.TestCase):
+    """Episode rows are shared between accounts, so the next stored row can
+    belong to someone else's further-on episode."""
+
+    SEASONS = [{"season_number": 1, "episode_count": 22}, {"season_number": 2, "episode_count": 21}]
+
+    def test_a_row_past_the_real_next_episode_skips_ahead(self):
+        # Watched 1x21; the only later row is another account's 2x03.
+        self.assertTrue(_skips_ahead(self.SEASONS, (1, 21), (2, 3)))
+
+    def test_the_real_next_episode_does_not(self):
+        self.assertFalse(_skips_ahead(self.SEASONS, (1, 21), (1, 22)))
+        self.assertFalse(_skips_ahead(self.SEASONS, (1, 22), (2, 1)))
+
+    def test_no_season_list_keeps_the_stored_row(self):
+        self.assertFalse(_skips_ahead([], (1, 21), (2, 3)))
 
 
 if __name__ == "__main__":

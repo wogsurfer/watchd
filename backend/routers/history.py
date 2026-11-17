@@ -607,6 +607,14 @@ def _compute_next_episode(seasons: list[dict], season: int, episode: int) -> tup
         return upcoming["season_number"], 1
     return None
 
+def _skips_ahead(seasons: list[dict], last: tuple[int, int], stored: tuple[int, int]) -> bool:
+    """Whether the next stored episode after `last` comes later than the
+    episode TMDB's season list says is next, i.e. episodes in between have
+    no row yet. Unknown when the show has no season list: then False."""
+    expected = _compute_next_episode(seasons, *last)
+    return expected is not None and stored > expected
+
+
 async def _show_watch_pct(
     db: AsyncSession,
     user_id: int,
@@ -1099,8 +1107,20 @@ async def get_next_up(
 
     found = await asyncio.gather(*(first_aired(eps) for eps in episodes_by_show.values()))
     for show_id, media in zip(episodes_by_show, found):
-        if media is not None:
-            next_per_show[show_id] = media
+        if media is None:
+            continue
+        # Episode rows are shared between accounts and only exist for
+        # episodes someone has played, so the next stored one can skip
+        # ahead (another account's 2x03 when 1x22 has no row yet). When
+        # TMDB's season list says an earlier episode comes next, leave it
+        # to the fallback below, which builds and stores that episode.
+        if _skips_ahead(
+            (media.show.tmdb_data or {}).get("seasons", []),
+            last_per_show[show_id],
+            (media.season_number, media.episode_number),
+        ):
+            continue
+        next_per_show[show_id] = media
 
     async def lookup_next_episode(show: Show, season: int, episode: int) -> tuple[Media | None, float]:
         """The next aired episode after (season, episode), built from
