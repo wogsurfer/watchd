@@ -11,7 +11,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -379,8 +379,12 @@ async def _get_or_create_episode_media(
         return None
 
 
-async def run_trakt_sync(user_id: int, job_id: int, full_resync: bool = False):
+async def run_trakt_sync(user_id: int, job_id: int, full_resync: bool = False, export=None):
+    """Imports from Trakt into Watchd. With `export` (a core.trakt_export.
+    TraktExport) it reads a Trakt data export instead of the Trakt API, so
+    no Trakt connection is needed."""
     from routers.sync import SyncCancelled, _raise_if_cancelled
+    client = export or trakt_client
     print(f"Starting Trakt sync for user {user_id}, job {job_id}")
     async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
     async with async_session() as db:
@@ -395,20 +399,25 @@ async def run_trakt_sync(user_id: int, job_id: int, full_resync: bool = False):
             result = await db.execute(select(UserSettings).where(UserSettings.user_id == user_id))
             settings = result.scalar_one_or_none()
 
-            if not settings or not settings.trakt_access_token:
+            if export is not None:
+                if not settings:
+                    settings = UserSettings(user_id=user_id)
+                    db.add(settings)
+                    await db.flush()
+            elif not settings or not settings.trakt_access_token:
                 err = "Trakt is not connected"
                 await db.execute(update(SyncJob).where(SyncJob.id == job_id).values(status=SyncStatus.failed, error_message=err))
                 await db.commit()
                 return
 
-            if not settings.trakt_client_id:
+            if export is None and not settings.trakt_client_id:
                 err = "Trakt Client ID not configured. Add it in Settings → Sync → Trakt."
                 await db.execute(update(SyncJob).where(SyncJob.id == job_id).values(status=SyncStatus.failed, error_message=err))
                 await db.commit()
                 return
 
             # Refresh the access token if it has expired
-            if not await trakt_client.validate_token(settings.trakt_client_id, settings.trakt_access_token):
+            if export is None and not await trakt_client.validate_token(settings.trakt_client_id, settings.trakt_access_token):
                 if settings.trakt_refresh_token and settings.trakt_client_secret:
                     try:
                         token_data = await trakt_client.refresh_access_token(
@@ -436,8 +445,9 @@ async def run_trakt_sync(user_id: int, job_id: int, full_resync: bool = False):
             _gs_result = await db.execute(select(GlobalSettings).where(GlobalSettings.id == 1))
             _gs = _gs_result.scalar_one_or_none()
             api_key = settings.tmdb_api_key or (_gs.tmdb_api_key if _gs else None)
-            sync_watched = settings.trakt_sync_watched
-            sync_ratings = settings.trakt_sync_ratings
+            # An export is imported whole: plays, ratings and lists.
+            sync_watched = settings.trakt_sync_watched or export is not None
+            sync_ratings = settings.trakt_sync_ratings or export is not None
 
             stats = {"movies": 0, "episodes": 0, "ratings": 0, "lists": 0, "list_items": 0, "skipped": 0, "errors": 0}
             _new_watched: set[int] = set()
@@ -446,7 +456,7 @@ async def run_trakt_sync(user_id: int, job_id: int, full_resync: bool = False):
             history_cutoff = datetime.now(timezone.utc).replace(tzinfo=None)
             history_start, history_end = _history_window(
                 getattr(settings, "trakt_history_cursor_at", None),
-                full_resync,
+                full_resync or export is not None,
                 history_cutoff,
             )
             history_error_count = stats["errors"]
@@ -459,7 +469,7 @@ async def run_trakt_sync(user_id: int, job_id: int, full_resync: bool = False):
             # gets its own WatchEvent instead of only the most recent one.
             if sync_watched:
                 print(f"  Fetching movie watch history from Trakt...")
-                history_movies = await trakt_client.get_history_movies(
+                history_movies = await client.get_history_movies(
                     client_id,
                     access_token,
                     start_at=history_start,
@@ -531,7 +541,7 @@ async def run_trakt_sync(user_id: int, job_id: int, full_resync: bool = False):
             # one row per play instead of one aggregated row per episode.
             if sync_watched:
                 print(f"  Fetching episode watch history from Trakt...")
-                history_episodes = await trakt_client.get_history_episodes(
+                history_episodes = await client.get_history_episodes(
                     client_id,
                     access_token,
                     start_at=history_start,
@@ -627,7 +637,7 @@ async def run_trakt_sync(user_id: int, job_id: int, full_resync: bool = False):
             # ── Ratings ───────────────────────────────────────────────────────
             if sync_ratings:
                 print("  Fetching ratings from Trakt...")
-                ratings_data = await trakt_client.get_ratings(client_id, access_token)
+                ratings_data = await client.get_ratings(client_id, access_token)
 
                 ratings_result = await db.execute(
                     select(Rating).where(
@@ -701,14 +711,14 @@ async def run_trakt_sync(user_id: int, job_id: int, full_resync: bool = False):
             await _raise_if_cancelled(db, job_id)
 
             # ── Lists (watchlist + personal lists) ───────────────────────────
-            if settings.trakt_sync_lists:
+            if settings.trakt_sync_lists or export is not None:
                 WATCHLIST_SLUG         = "__watchlist__"
                 WATCHLIST_MOVIES_SLUG  = "__watchlist_movies__"
                 WATCHLIST_SHOWS_SLUG   = "__watchlist_shows__"
                 split_watchlist = getattr(settings, "trakt_watchlist_split", False)
 
                 print(f"  Fetching watchlist from Trakt...")
-                watchlist_items = await trakt_client.get_watchlist(client_id, access_token)
+                watchlist_items = await client.get_watchlist(client_id, access_token)
                 print(f"  {len(watchlist_items)} watchlist items fetched from Trakt")
 
                 if split_watchlist:
@@ -899,7 +909,7 @@ async def run_trakt_sync(user_id: int, job_id: int, full_resync: bool = False):
                 await db.commit()
 
                 print(f"  Fetching lists from Trakt...")
-                trakt_lists = await trakt_client.get_user_lists(client_id, access_token)
+                trakt_lists = await client.get_user_lists(client_id, access_token)
                 print(f"  {len(trakt_lists)} lists fetched from Trakt")
 
                 for trakt_list in trakt_lists:
@@ -936,7 +946,7 @@ async def run_trakt_sync(user_id: int, job_id: int, full_resync: bool = False):
                     existing_item_media_ids: set[int] = {row[0] for row in existing_items_result}
 
                     try:
-                        items = await trakt_client.get_list_items(client_id, access_token, list_slug)
+                        items = await client.get_list_items(client_id, access_token, list_slug)
                     except Exception as exc:
                         logger.warning("Could not fetch items for Trakt list %s: %s", list_slug, exc)
                         continue
@@ -991,7 +1001,7 @@ async def run_trakt_sync(user_id: int, job_id: int, full_resync: bool = False):
 
                     await db.commit()
 
-            if sync_watched and not history_had_errors:
+            if sync_watched and not history_had_errors and export is None:
                 settings.trakt_history_cursor_at = history_end
 
             print(
@@ -1062,6 +1072,43 @@ async def sync_trakt(
     background_tasks.add_task(run_trakt_sync, current_user.id, job.id, full)
     mode = "full resync" if full else "incremental sync"
     return {"status": "started", "job_id": job.id, "message": f"Trakt {mode} is running in the background"}
+
+
+@router.post("/import-export")
+async def import_trakt_export(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Import a Trakt data export (the ZIP from Trakt's Settings → Data, or a
+    JSON file from it): plays, ratings, watchlist and lists, with no Trakt
+    connection needed. Runs in the background like a Trakt sync; importing
+    the same export again adds nothing twice."""
+    from core.trakt_export import MAX_EXPORT_BYTES, TraktExportError, read_export
+
+    data = await file.read(MAX_EXPORT_BYTES + 1)
+    if len(data) > MAX_EXPORT_BYTES:
+        raise HTTPException(status_code=413, detail="The export is too big to import in one go.")
+    try:
+        export = read_export(file.filename or "", data)
+    except TraktExportError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    settings = (await db.execute(select(UserSettings).where(UserSettings.user_id == current_user.id))).scalar_one_or_none()
+    tmdb_key = settings.tmdb_api_key if settings else None
+    if not tmdb_key:
+        gs = (await db.execute(select(GlobalSettings).where(GlobalSettings.id == 1))).scalar_one_or_none()
+        tmdb_key = gs.tmdb_api_key if gs else None
+    if not tmdb_key:
+        raise HTTPException(status_code=400, detail="A TMDB key is needed to match the titles. Add one in Settings.")
+
+    job = SyncJob(user_id=current_user.id, source=CollectionSource.trakt, status=SyncStatus.pending)
+    db.add(job)
+    await db.commit()
+    await db.refresh(job)
+    background_tasks.add_task(run_trakt_sync, current_user.id, job.id, False, export)
+    return {"status": "started", "job_id": job.id, "found": export.summary()}
 
 
 async def _run_trakt_push(user_id: int, job_id: int) -> None:

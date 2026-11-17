@@ -761,6 +761,15 @@ if (me.totp_enabled) {
                         ? "Trakt is connected. Use Pull to import your watched history and ratings."
                         : "Enter your Client ID and Secret, then click Connect Trakt."}
                     </p>
+                    <div class="space-y-2 border-t border-zinc-800 pt-4">
+                      <p class="text-sm font-medium text-zinc-300">Import a Trakt export</p>
+                      <p class="text-xs text-zinc-500">No Trakt app needed. On trakt.tv go to Settings → Data and export your data; Trakt emails you a ZIP. Choose that ZIP, or a JSON file from it. It brings in your plays, ratings, watchlist and lists, and importing the same export again adds nothing twice.</p>
+                      <div class="flex flex-wrap items-center gap-2">
+                        <input type="file" id="trakt-export-file" accept=".zip,.json,application/zip,application/json" class="min-w-0 text-sm text-zinc-400 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-zinc-200 hover:file:bg-zinc-700" />
+                        <button type="button" id="trakt-export-btn" disabled={!hasTmdbKey} title={!hasTmdbKey ? "TMDB Read Access Token is required to match titles" : "Import the chosen Trakt export"} class="text-sm px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30">Import</button>
+                      </div>
+                      <p id="trakt-export-status" class="text-xs text-zinc-400"></p>
+                    </div>
                   </div>
                   <!-- Right: Sync Preferences (only if connected) -->
                   {settings.trakt_connected && (
@@ -2067,9 +2076,11 @@ if (me.totp_enabled) {
       if (label) label.textContent = isPush ? 'Push complete' : 'Pull complete';
       if (pctEl) pctEl.textContent = '100%';
       const s = job.stats;
-      if (items) items.textContent = s
-        ? `${s.succeeded ?? 0} ok, ${s.failed ?? 0} failed`
-        : `${job.processed_items} items`;
+      if (items) items.textContent = !s
+        ? `${job.processed_items} items`
+        : s.movies !== undefined
+          ? `${s.movies} film plays, ${s.episodes} episode plays, ${s.ratings} ratings, ${s.list_items} list items added${s.errors ? ` · ${s.errors} couldn't be matched` : ''}`
+          : `${s.succeeded ?? 0} ok, ${s.failed ?? 0} failed`;
       return;
     }
 
@@ -2111,6 +2122,36 @@ if (me.totp_enabled) {
     if (traktPoller != null) clearTimeout(traktPoller);
     pollTraktJob();
   }
+
+  // Importing a Trakt data export (no Trakt connection needed): the upload
+  // starts a Trakt job, followed by the same progress strip as a Pull.
+  const traktExportBtn = document.getElementById('trakt-export-btn') as HTMLButtonElement | null;
+  traktExportBtn?.addEventListener('click', async () => {
+    const input = document.getElementById('trakt-export-file') as HTMLInputElement | null;
+    const status = document.getElementById('trakt-export-status');
+    const file = input?.files?.[0];
+    if (!status) return;
+    if (!file) { status.textContent = 'Choose the ZIP Trakt emailed you first.'; return; }
+    traktExportBtn.disabled = true;
+    status.className = 'text-xs text-zinc-400';
+    status.textContent = 'Reading the export…';
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const res = await fetch('/api/proxy/trakt/import-export', { method: 'POST', body });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(result.detail || 'The import failed.');
+      const f = result.found || {};
+      status.className = 'text-xs text-emerald-400';
+      status.textContent = `Found ${f.movie_plays ?? 0} film plays, ${f.episode_plays ?? 0} episode plays, ${f.ratings ?? 0} ratings, ${f.watchlist ?? 0} on the watchlist and ${f.lists ?? 0} lists. Importing now; this can take a while for a big history.`;
+      startTraktPoller();
+    } catch (e: any) {
+      status.className = 'text-xs text-red-400';
+      status.textContent = e?.message || 'The import failed.';
+    } finally {
+      traktExportBtn.disabled = false;
+    }
+  });
 
   // ── MDBList progress tracking ─────────────────────────────────────────────
   let mdblistPoller: ReturnType<typeof setTimeout> | null = null;
