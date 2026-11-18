@@ -4,19 +4,24 @@ import { api } from "../lib/api";
 import EpisodeBadge from "../components/EpisodeBadge.astro";
 import watchdIconWhite from "../assets/watchd-icon-white.png";
 import watchdIconRed from "../assets/watchd-icon-red.png";
+import { layoutWeeks, weeksUntil } from "../lib/calendar";
 
 const { token } = Astro.locals;
 
 Astro.response.headers.set("Cache-Control", "private, no-cache");
 
-const WEEKS = 5;
+// The first five weeks are always shown; after that, every week up to the
+// last announced episode or release that has something in it.
+const SHOWN_WEEKS = 5;
+// Ten years ahead: in practice, everything announced.
+const DAYS_AHEAD = 3660;
 const DAY_MS = 86400000;
 
 let data: Awaited<ReturnType<typeof api.calendar.upcoming>> = { days: 0, episodes: [] };
 let error = "";
 
 try {
-  data = await api.calendar.upcoming(token, WEEKS * 7, true);
+  data = await api.calendar.upcoming(token, DAYS_AHEAD, true);
 } catch (e: unknown) {
   error = e instanceof Error ? e.message : "Failed to load calendar";
 }
@@ -28,6 +33,12 @@ const parse = (s: string) => new Date(`${s}T00:00:00Z`);
 const today = parse(data.today ?? data.start_date ?? iso(new Date()));
 const todayIso = iso(today);
 const weekStart = new Date(today.getTime() - ((today.getUTCDay() + 6) % 7) * DAY_MS);
+// The last day anything is announced for.
+const lastDay = [...(data.episodes ?? []).map((e) => e.air_date), ...(data.movies ?? []).map((m) => m.date)]
+  .filter(Boolean)
+  .sort()
+  .at(-1) ?? null;
+const WEEKS = weeksUntil(iso(weekStart), lastDay, SHOWN_WEEKS);
 
 // One card per show per day: back-to-back episodes of the same season are
 // grouped ("S01E05–06").
@@ -105,12 +116,14 @@ const weeks = Array.from({ length: WEEKS }, (_, w) => {
   const range = start.getUTCMonth() === end.getUTCMonth()
     ? `${start.getUTCDate()}–${fmt(end, { day: "numeric", month: "long" })}`
     : `${fmt(start, { day: "numeric", month: "short" })} – ${fmt(end, { day: "numeric", month: "short" })}`;
-  const label = w === 0 ? "This week" : w === 1 ? "Next week" : `Week of ${fmt(start, { day: "numeric", month: "long" })}`;
+  const label = w === 0 ? "This week" : w === 1 ? "Next week"
+    : `Week of ${fmt(start, start.getUTCFullYear() === today.getUTCFullYear() ? { day: "numeric", month: "long" } : { day: "numeric", month: "long", year: "numeric" })}`;
   const count = days.reduce((n, d) => n + d.cards.reduce((m, c) => m + episodeCount(c), 0), 0);
   const filmCount = days.reduce((n, d) => n + d.films.length, 0);
   return { label, range, days, count, filmCount };
 });
 
+const slots = layoutWeeks(weeks.map((w) => w.count + w.filmCount), SHOWN_WEEKS);
 const total = weeks.reduce((n, w) => n + w.count, 0);
 const filmTotal = weeks.reduce((n, w) => n + w.filmCount, 0);
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -126,7 +139,7 @@ const summary = (episodes: number, films: number) =>
         <h1 class="text-3xl font-black text-zinc-100 tracking-tighter uppercase">Calendar</h1>
         <p class="cal-sub">Episodes from shows you're watching, and release dates for films you follow</p>
       </div>
-      {total + filmTotal > 0 && <p class="cal-total">{summary(total, filmTotal)} over {WEEKS} weeks</p>}
+      {total + filmTotal > 0 && <p class="cal-total">{summary(total, filmTotal)}{lastDay && lastDay > iso(weeks[SHOWN_WEEKS - 1]?.days[6].date ?? today) ? <> through {fmt(parse(lastDay), { month: "long", year: "numeric" })}</> : <> over the next {SHOWN_WEEKS} weeks</>}</p>}
     </header>
 
     {error && <div class="cal-error">{error}</div>}
@@ -134,11 +147,16 @@ const summary = (episodes: number, films: number) =>
     {!error && total + filmTotal === 0 && (
       <div class="cal-empty">
         <p class="cal-empty-title">Nothing upcoming</p>
-        <p>There are no episodes or film releases this week or in the next {WEEKS - 1} weeks.</p>
+        <p>Nothing is announced yet for the shows you're watching or the films you follow.</p>
       </div>
     )}
 
-    {total + filmTotal > 0 && weeks.map((week) => (
+    {total + filmTotal > 0 && slots.map((slot) => {
+      if (slot.type === "gap") {
+        return <p class="cal-gap">Nothing for {slot.weeks === 1 ? "a week" : `${slot.weeks} weeks`}</p>;
+      }
+      const week = weeks[slot.index];
+      return (
       <section class="cal-week">
         <div class="cal-week-head">
           <h2>{week.label}</h2>
@@ -200,7 +218,7 @@ const summary = (episodes: number, films: number) =>
           ))}
         </div>
       </section>
-    ))}
+    ); })}
   </div>
 </Base>
 
@@ -213,6 +231,9 @@ const summary = (episodes: number, films: number) =>
   .cal-empty-title { color: #e4e4e7; font-weight: 800; font-size: 18px; margin-bottom: 4px; }
 
   .cal-week + .cal-week { margin-top: 3rem; }
+  .cal-gap { margin: 2.25rem 0 0; padding: 10px 14px; border: 1px dashed #27272a; border-radius: 12px; color: #71717a; font-size: 13px; font-weight: 700; text-align: center; }
+  .cal-gap + .cal-week { margin-top: 2.25rem; }
+  :global(html.light) .cal-gap { border-color: #d4d4d8; }
   .cal-week-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-bottom: 14px; }
   .cal-week-head h2 { font-size: 20px; font-weight: 900; letter-spacing: -.02em; color: #f4f4f5; text-transform: uppercase; }
   .cal-week-head span { color: #71717a; font-size: 13px; font-weight: 700; }

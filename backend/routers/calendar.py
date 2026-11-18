@@ -530,10 +530,12 @@ async def _calendar_movies(
 
 @router.get("/upcoming")
 async def calendar_upcoming(
+    # Up to ten years: in practice everything announced. The schedules are
+    # fetched whole and cached, so a longer window costs no extra requests.
     days: int = Query(
         7,
         ge=1,
-        le=90,
+        le=3660,
     ),
     from_week_start: bool = Query(
         False,
