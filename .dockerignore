@@ -9,7 +9,7 @@ AGENTS.md
 CLAUDE.md
 
 # Dev DB and local env
-.testdb/
+pgdata/
 .env
 *.env
 

@@ -415,6 +415,21 @@ async def _write_watch_event(
 
 # ── Jellyfin ───────────────────────────────────────────────────────────────────
 
+def _norm_server_user(value) -> str:
+    return str(value or "").strip().lower().replace("-", "")
+
+
+def _is_connection_user(conn, data: dict) -> bool:
+    """Whether a webhook event is for the media server user this connection
+    belongs to. Every user's plays go to the same server-wide webhook, so
+    with more than one Watchd account on a server the others' must be
+    dropped. The connection holds a user ID or a username; a connection or
+    event without either can't be checked, so it's let through."""
+    wanted = {_norm_server_user(v) for v in (conn.server_user_id, conn.server_username)} - {""}
+    got = {_norm_server_user(data.get("user_id")), _norm_server_user(data.get("username"))} - {""}
+    return not wanted or not got or bool(wanted & got)
+
+
 def parse_jellyfin_payload(payload: dict) -> dict | None:
     notification_type = (
         payload.get("NotificationType")
@@ -474,6 +489,7 @@ def parse_jellyfin_payload(payload: dict) -> dict | None:
                     payload.get("User", {}).get("Name")
                     or ""
                 ),
+                "user_id": (payload.get("User") or {}).get("Id") or "",
                 "quality": {},
             }
 
@@ -509,6 +525,7 @@ def parse_jellyfin_payload(payload: dict) -> dict | None:
             "is_paused": bool(play_state.get("IsPaused", False)),
             "session_id": session.get("Id") or session.get("PlaySessionId"),
             "username": session.get("UserName") or payload.get("NotificationUsername", ""),
+            "user_id": session.get("UserId") or payload.get("UserId") or "",
             "quality": quality,
         }
 
@@ -546,6 +563,7 @@ def parse_jellyfin_payload(payload: dict) -> dict | None:
         "is_paused": bool(payload.get("IsPaused", False)),
         "session_id": payload.get("PlaySessionId") or payload.get("DeviceId"),
         "username": payload.get("UserName") or payload.get("NotificationUsername", ""),
+        "user_id": payload.get("UserId") or "",
         "quality": {},
         # Only present on UserDataSaved events (manual watched/unwatched toggle,
         # rating change, favorite, etc. all raise this same notification type).
@@ -1080,6 +1098,8 @@ async def _handle_jellyfin_scrobble_webhook(
     conn = await _get_scrobble_connection_by_id(db, user.id, connection_id)
     if not conn:
         raise HTTPException(status_code=404, detail="Scrobble connection not found")
+    if not _is_connection_user(conn, data):
+        return {"status": "ignored", "reason": "event is for another user on the media server"}
 
     notification_type = data["notification_type"]
 

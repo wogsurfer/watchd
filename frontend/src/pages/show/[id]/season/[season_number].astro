@@ -172,12 +172,12 @@ const seasonAllWatched = airedCount > 0 && watchedCount === airedCount;
                 hideRate
                 tmdbId={Number(id)}
                 mediaType="series"
-                watched={season.season_watched ?? false}
+                watched={airedCount ? seasonAllWatched : (season.season_watched ?? false)}
                 inLists={[]}
                 inLibrary={season.season_in_library ?? season.show_in_library ?? false}
                 collectionPct={season.season_collection_pct ?? season.show_collection_pct ?? 0}
                 discId={season.season_disc_id ?? null}
-                watchPct={season.season_watched ? 100 : 0}
+                watchPct={airedCount ? progressPct : (season.season_watched ? 100 : 0)}
                 seasonNumber={Number(season_number)}
                 isMonitored={season.show_is_monitored ?? false}
                 requestEnabled={false}
@@ -475,6 +475,20 @@ const seasonAllWatched = airedCount > 0 && watchedCount === airedCount;
 
       const next = aired.find((r) => !isWatched(r));
       rows.forEach((r) => r.classList.toggle('is-next', r === next && watched > 0));
+
+      // The Watched box in the action stack shows the same percentage.
+      const box = document.querySelector<HTMLElement>('.action-stack [data-action="watched"]');
+      if (box && aired.length && box.dataset.watchPct !== String(pct)) {
+        const all = watched === aired.length;
+        box.dataset.watchPct = String(pct);
+        box.dataset.watched = String(all);
+        box.dataset.state = all ? 'active' : 'inactive';
+        box.title = `${pct}% watched`;
+        const value = box.querySelector('.as-value');
+        if (value) value.textContent = `${pct}%`;
+        const logo = box.querySelector<HTMLImageElement>('img[data-watchd-red]');
+        if (logo) logo.src = (all ? logo.dataset.watchdRed : logo.dataset.watchdWhite) ?? logo.src;
+      }
 
       const mark = document.getElementById('season-mark');
       if (mark) {

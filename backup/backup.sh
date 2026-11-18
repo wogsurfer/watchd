@@ -17,6 +17,9 @@
 #     docker exec scrob-backup-1 sh /usr/local/bin/backup.sh test
 # the newest dump is restored into a scratch database and its row counts
 # checked against the live one; the result goes in /out/last-restore-test.txt.
+#
+# If NTFY_URL is set (an ntfy.sh topic URL, in .env), a failed backup or
+# restore test sends a push notification, and so does a passing restore test.
 set -u
 
 KEEP_DAYS="${KEEP_DAYS:-14}"
@@ -26,6 +29,12 @@ KEY=/config/backup.key
 TEST_TABLES="users media shows watch_events ratings lists list_items physical_items physical_pick_values user_settings"
 
 encrypt() { openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass "file:$KEY" "$@"; }
+# Push notification: notify <title> <message> [priority]. Silent if NTFY_URL
+# isn't set; never fails the backup.
+notify() {
+    [ -n "${NTFY_URL:-}" ] || return 0
+    curl -fsS -m 15 -H "Title: $1" -H "Priority: ${3:-high}" -H "Tags: floppy_disk"         -d "$2" "$NTFY_URL" >/dev/null 2>&1 || echo "backup: couldn't send notification"
+}
 decrypt() { openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass "file:$KEY" "$@"; }
 
 # Backups from before encryption: encrypt them, and remove the plain copies.
@@ -49,6 +58,7 @@ backup() {
     if [ ! -s "$KEY" ]; then
         # Never write the secrets out unencrypted.
         echo "backup: no key at $KEY, so nothing was backed up"
+        notify "Watchd backup failed" "No backup key at $KEY, so nothing was backed up."
         return 1
     fi
     encrypt_old
@@ -60,13 +70,20 @@ backup() {
     else
         rm -f "/out/database/watchd-$stamp.dump.enc.part"
         echo "backup: database dump FAILED"
+        notify "Watchd backup failed" "The database dump for $stamp failed. See: docker logs scrob-backup-1"
         set +o pipefail
         return 1
     fi
     set +o pipefail
 
-    rsync -a --exclude 'cache/' --exclude 'image_cache/' /data/ /out/files/
-    encrypt -in /config/.env -out /out/config/env.enc
+    if ! rsync -a --exclude 'cache/' --exclude 'image_cache/' /data/ /out/files/; then
+        echo "backup: copying the stored files FAILED"
+        notify "Watchd backup failed" "Copying the stored files (covers, posters, imports) failed on $stamp."
+    fi
+    if ! encrypt -in /config/.env -out /out/config/env.enc; then
+        echo "backup: encrypting .env FAILED"
+        notify "Watchd backup failed" "Encrypting the settings file failed on $stamp."
+    fi
 
     find /out/database -name 'watchd-*.dump.enc' -mtime +"$KEEP_DAYS" -delete
 
@@ -112,13 +129,15 @@ restore_test() {
     out=/out/last-restore-test.txt
     if [ -z "$newest" ]; then
         echo "FAILED $(date '+%Y-%m-%d %H:%M'): no backup to test" | tee "$out"
+        notify "Watchd restore test failed" "There was no backup to test."
         return 1
     fi
     scratch=watchd_restore_test
     tmp=/tmp/restore-test.dump
-    dropdb --if-exists "$scratch" && createdb "$scratch" || { echo "FAILED: couldn't make the scratch database" | tee "$out"; return 1; }
+    dropdb --if-exists "$scratch" && createdb "$scratch" || { echo "FAILED: couldn't make the scratch database" | tee "$out"; notify "Watchd restore test failed" "Couldn't make the scratch database."; return 1; }
     if ! decrypt -in "$newest" -out "$tmp"; then
         echo "FAILED $(date '+%Y-%m-%d %H:%M'): $(basename "$newest") wouldn't decrypt" | tee "$out"
+        notify "Watchd restore test failed" "$(basename "$newest") wouldn't decrypt. Check backup.key."
         dropdb --if-exists "$scratch"; return 1
     fi
     pg_restore -d "$scratch" --no-owner "$tmp" 2>/tmp/restore-test.log
@@ -139,6 +158,11 @@ restore_test() {
         echo "$result $(date '+%Y-%m-%d %H:%M'): restored $(basename "$newest")$report"
         echo "(Counts can differ by what's changed since the backup was made.)"
     } | tee "$out"
+    if [ "$result" = PASSED ]; then
+        notify "Watchd restore test passed" "$(basename "$newest") restored and its row counts match.$report" low
+    else
+        notify "Watchd restore test failed" "$(basename "$newest") restored with missing rows:$report"
+    fi
     [ "$result" = PASSED ]
 }
 

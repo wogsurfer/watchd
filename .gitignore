@@ -61,7 +61,7 @@ frontend/frontend.pid
 frontend/frontend.log
 
 # --- Databases ---
-.testdb/
+pgdata/
 *.db
 *.sqlite3
 
