@@ -1,0 +1,274 @@
+---
+// A year in review: /stats/2026/review (or /stats/ytd/review for this year).
+// The year's stats (stats/overview), its days (stats/days, for the streak and
+// busiest day) and the discs bought that year, as one page of highlights.
+import Base from "../../../layouts/Base.astro";
+import SourceBadge from "../../../components/SourceBadge.astro";
+import { api, type PhysicalSummary } from "../../../lib/api";
+import { addUp, discsAddedIn, mergeSources, peak, topCast, type Person } from "../../../lib/yearReview";
+export const prerender = false;
+
+const { id } = Astro.params;
+const { token, user: currentUser } = Astro.locals;
+Astro.response.headers.set("Cache-Control", "private, no-cache");
+
+const nowYear = new Date().getFullYear();
+const year = id === "ytd" ? nowYear : /^\d{4}$/.test(id ?? "") ? Number(id) : NaN;
+const pad = (n: number) => String(n).padStart(2, "0");
+const today = new Date();
+const since = `${year}-01-01`;
+const until = year === nowYear ? `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}` : `${year}-12-31`;
+// The server's time zone (the home's, as set in Docker), for which day a play fell on.
+const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+
+let error = "";
+let d: any = null;
+let days: any = null;
+let discs: PhysicalSummary[] = [];
+
+if (!currentUser) error = "Please log in to see your year in review.";
+else if (!(year >= 1980 && year <= nowYear)) error = "There's no review for that year.";
+else {
+  const backend = `http://localhost:${import.meta.env.BACKEND_PORT ?? "7331"}`;
+  const params = new URLSearchParams({ since, until, tz });
+  const headers = { Authorization: `Bearer ${token}` };
+  try {
+    const [overview, daysRes, items] = await Promise.all([
+      fetch(`${backend}/profile/${currentUser.id}/stats/overview?${params}`, { headers }),
+      fetch(`${backend}/profile/${currentUser.id}/stats/days?${params}`, { headers }),
+      api.physical.items(token).catch(() => ({ items: [] as PhysicalSummary[] })),
+    ]);
+    if (!overview.ok) throw new Error();
+    d = await overview.json();
+    days = daysRes.ok ? await daysRes.json() : null;
+    discs = discsAddedIn(items.items, year);
+  } catch {
+    error = "Couldn't load your year in review.";
+  }
+}
+
+const num = (n: number) => Math.round(Number(n || 0)).toLocaleString("en-GB");
+const plural = (n: number, one: string, many: string) => `${num(n)} ${n === 1 ? one : many}`;
+const img = (path: string | null | undefined, size: string) => {
+  if (!path) return "";
+  const m = /image\.tmdb\.org\/t\/p\/[^/]+(\/.+)$/.exec(path);
+  if (m) return `/api/proxy/media/image/${size}${m[1]}`;
+  if (path.startsWith("http") || path.startsWith("/api/")) return path;
+  return `/api/proxy/media/image/${size}${path.startsWith("/") ? path : "/" + path}`;
+};
+const longDate = (s: string) => new Date(`${s}T12:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const hourLabel =(h: number) => (h === 0 ? "midnight" : h === 12 ? "noon" : h < 12 ? `${h}am` : `${h - 12}pm`);
+
+const plays = d?.totals?.plays ?? 0;
+const hours = (d?.totals?.minutes ?? 0) / 60;
+const tv = d?.tv ?? {};
+const mv = d?.movies ?? {};
+const topShows = (tv.top_shows ?? []).slice(0, 5);
+const topMovies = (mv.top_movies ?? []).slice(0, 5);
+const cast: Person[] = d ? topCast(d.people ?? {}) : [];
+const sources = d ? mergeSources([tv.sources ?? [], mv.sources ?? []], plays) : [];
+const months = addUp(tv.by_month ?? [], mv.by_month ?? []);
+const weekdays = addUp(tv.by_weekday ?? [], mv.by_weekday ?? []);
+const hoursOfDay = addUp(tv.by_hour ?? [], mv.by_hour ?? []);
+const bestMonth = peak(months);
+const bestWeekday = peak(weekdays);
+const bestHour = peak(hoursOfDay);
+const genres = [...(tv.genres ?? []), ...(mv.genres ?? [])].reduce((m: Map<string, number>, g: any) => m.set(g.name, (m.get(g.name) || 0) + g.count), new Map());
+const topGenres = [...genres].sort((a, b) => b[1] - a[1]).slice(0, 5);
+const maxMonth = Math.max(1, ...months);
+const discHours = Math.round(discs.reduce((s, i) => s + (i.runtime || 0), 0) / 60);
+const title = year === nowYear ? `${year} so far` : String(year);
+---
+
+<Base title={`${year} in review`}>
+  {error ? (
+    <div class="yr-page"><p class="yr-empty">{error}</p></div>
+  ) : !plays ? (
+    <div class="yr-page"><p class="yr-empty">No plays recorded in {year}.</p></div>
+  ) : (
+    <div class="yr-page">
+      <a class="yr-back" href={`/stats/${year === nowYear ? "ytd" : year}`}>← All {year} stats</a>
+
+      <header class="yr-hero">
+        <p class="yr-eyebrow">Year in review</p>
+        <h1>{title}</h1>
+        <p class="yr-lede">You spent <b>{num(hours)} hours</b> watching: <b>{plural(mv.movies ?? 0, "film", "films")}</b> and <b>{plural(tv.episodes ?? 0, "episode", "episodes")}</b> of <b>{plural(tv.shows ?? 0, "show", "shows")}</b>.</p>
+        <div class="yr-tiles">
+          <div><b>{num(plays)}</b><span>plays</span></div>
+          <div><b>{num(hours / 24)}</b><span>days of viewing, end to end</span></div>
+          {days && <div><b>{num(days.days_watched)}</b><span>days you watched something</span></div>}
+          {days?.longest_streak && <div><b>{plural(days.longest_streak.days, "day", "days")}</b><span>longest streak · {longDate(days.longest_streak.start)} to {longDate(days.longest_streak.end)}</span></div>}
+        </div>
+      </header>
+
+      {topShows.length > 0 && (
+        <section>
+          <h2>Your top shows</h2>
+          <div class="yr-posters">
+            {topShows.map((s: any, n: number) => (
+              <a href={s.tmdb_id ? `/show/${s.tmdb_id}` : s.tvdb_id ? `/show/tvdb/${s.tvdb_id}` : "#"} class="yr-poster">
+                <span class="yr-poster-img">{s.poster_path ? <img src={img(s.poster_path, "w342")} alt="" loading="lazy" /> : <em>{s.title}</em>}<i>{n + 1}</i></span>
+                <span class="yr-cap">{s.title}<small>{plural(s.episodes, "episode", "episodes")}</small></span>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {topMovies.length > 0 && (
+        <section>
+          <h2>Your top films</h2>
+          <div class="yr-posters">
+            {topMovies.map((m: any, n: number) => (
+              <a href={m.tmdb_id ? `/movie/${m.tmdb_id}` : "#"} class="yr-poster">
+                <span class="yr-poster-img">{m.poster_path ? <img src={img(m.poster_path, "w342")} alt="" loading="lazy" /> : <em>{m.title}</em>}<i>{n + 1}</i></span>
+                <span class="yr-cap">{m.title}<small>{m.plays > 1 ? `${m.plays} plays` : m.year ?? ""}</small></span>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {cast.length > 0 && (
+        <section>
+          <h2>Faces you saw most</h2>
+          <div class="yr-people">
+            {cast.map((p) => (
+              <div class="yr-person">
+                <span class="yr-face">{p.profile_path ? <img src={img(p.profile_path, "w185")} alt="" loading="lazy" /> : <em>{p.name.slice(0, 1)}</em>}</span>
+                <b>{p.name}</b>
+                <small>{[p.movies ? plural(p.movies, "film", "films") : "", p.shows ? plural(p.shows, "show", "shows") : ""].filter(Boolean).join(" · ")}</small>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section>
+        <h2>How you watched</h2>
+        <div class="yr-facts">
+          {bestMonth >= 0 && <div><span>Busiest month</span><b>{MONTHS[bestMonth]}</b><small>{plural(months[bestMonth], "play", "plays")}</small></div>}
+          {days?.busiest_day && <div><span>Biggest day</span><b>{longDate(days.busiest_day.date)}</b><small>{plural(days.busiest_day.plays, "play", "plays")}</small></div>}
+          {bestWeekday >= 0 && <div><span>Favourite day</span><b>{WEEKDAYS[bestWeekday]}</b><small>{plural(weekdays[bestWeekday], "play", "plays")}</small></div>}
+          {bestHour >= 0 && <div><span>Usual time</span><b>Around {hourLabel(bestHour)}</b><small>{plural(hoursOfDay[bestHour], "play", "plays")} began then</small></div>}
+          {topGenres.length > 0 && <div><span>Top genre</span><b>{topGenres[0][0]}</b><small>then {topGenres.slice(1, 3).map((g) => g[0]).join(", ")}</small></div>}
+        </div>
+
+        <div class="yr-months" aria-label="Plays by month">
+          {months.map((count, n) => (
+            <div class:list={["yr-month", { peak: n === bestMonth }]} title={`${MONTHS[n]}: ${plural(count, "play", "plays")}`}>
+              <span style={`height:${Math.max(2, Math.round((count / maxMonth) * 100))}%`}></span>
+              <small>{MONTHS[n].slice(0, 1)}</small>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {sources.length > 0 && (
+        <section>
+          <h2>Where you watched</h2>
+          <div class="yr-sources">
+            {sources.map((s) => (
+              <div class:list={["yr-source", { muted: s.name === "Not recorded" }]}>
+                <span class="yr-source-name">{s.name === "Not recorded" ? <span>Not recorded</span> : <SourceBadge source={s.name} />}</span>
+                <span class="yr-bar"><span style={`width:${Math.max(1, s.pct)}%`}></span></span>
+                <span class="yr-source-n">{s.pct}% <small>{num(s.count)}</small></span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {discs.length > 0 && (
+        <section>
+          <h2>Added to the shelf</h2>
+          <p class="yr-sub">{plural(discs.length, "release", "releases")} bought in {year}{discHours > 0 && <>, about {num(discHours)} hours of film</>}.</p>
+          <div class="yr-discs">
+            {discs.slice(0, 24).map((i) => (
+              <a href={`/collection?item=${i.id}`} title={i.title}>
+                {i.cover ? <img src={i.cover} alt={i.title} loading="lazy" /> : <em>{i.title}</em>}
+              </a>
+            ))}
+          </div>
+          {discs.length > 24 && <p class="yr-sub">And {num(discs.length - 24)} more.</p>}
+        </section>
+      )}
+    </div>
+  )}
+</Base>
+
+<style>
+  .yr-page { max-width: 1100px; margin: 0 auto; padding: 24px 0 96px; color: #f4f4f5; }
+  .yr-empty { margin: 64px 0; color: #a1a1aa; text-align: center; }
+  .yr-back { color: #a1a1aa; font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; text-decoration: none; }
+  .yr-back:hover { color: #fff; }
+  .yr-hero { padding: 36px 0 40px; border-bottom: 1px solid #1f1f23; }
+  .yr-eyebrow { margin: 0; color: #e50914; font-size: 12px; font-weight: 900; letter-spacing: .3em; text-transform: uppercase; }
+  .yr-hero h1 { margin: 10px 0 18px; font-size: clamp(3rem, 10vw, 6.5rem); line-height: 1; font-weight: 900; letter-spacing: -.05em; }
+  .yr-lede { max-width: 46rem; margin: 0; color: #d4d4d8; font-size: clamp(1.05rem, 2.4vw, 1.4rem); line-height: 1.5; }
+  .yr-lede b { color: #fff; }
+  .yr-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 28px; }
+  .yr-tiles > div, .yr-facts > div { padding: 16px; border-radius: 16px; background: #0a0a0a; border: 1px solid #1c1c1f; }
+  .yr-tiles b { display: block; font-size: 30px; font-weight: 900; letter-spacing: -.03em; }
+  .yr-tiles span { color: #a1a1aa; font-size: 12.5px; font-weight: 700; }
+  section { padding-top: 44px; }
+  h2 { margin: 0 0 16px; font-size: 22px; font-weight: 900; letter-spacing: -.02em; }
+  .yr-sub { margin: -6px 0 16px; color: #a1a1aa; font-size: 14px; }
+  .yr-posters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
+  .yr-poster { display: block; min-width: 0; color: inherit; text-decoration: none; }
+  .yr-poster-img { position: relative; display: block; aspect-ratio: 2 / 3; border-radius: 12px; overflow: hidden; background: #111113; border: 1px solid #1f1f23; transition: border-color .15s, transform .15s; }
+  .yr-poster:hover .yr-poster-img { border-color: #e50914; transform: translateY(-3px); }
+  .yr-poster-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .yr-poster-img em { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 10px; text-align: center; color: #71717a; font-style: normal; font-size: 12px; font-weight: 800; }
+  .yr-poster-img i { position: absolute; top: 8px; left: 8px; min-width: 26px; padding: 2px 8px; border-radius: 999px; background: #e50914; color: #fff; font-style: normal; font-size: 13px; font-weight: 900; text-align: center; }
+  .yr-cap { display: block; margin-top: 8px; font-size: 13px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .yr-cap small { display: block; color: #a1a1aa; font-size: 11.5px; font-weight: 600; }
+  .yr-people { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; }
+  .yr-person { min-width: 0; text-align: center; }
+  .yr-face { display: block; width: 100%; aspect-ratio: 1; border-radius: 50%; overflow: hidden; background: #18181b; margin-bottom: 8px; }
+  .yr-face img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .yr-face em { display: flex; height: 100%; align-items: center; justify-content: center; color: #71717a; font-style: normal; font-size: 28px; font-weight: 900; }
+  .yr-person b { display: block; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .yr-person small { color: #a1a1aa; font-size: 11.5px; }
+  .yr-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+  .yr-facts span { display: block; color: #a1a1aa; font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+  .yr-facts b { display: block; margin: 6px 0 2px; font-size: 20px; font-weight: 900; }
+  .yr-facts small { color: #a1a1aa; font-size: 12.5px; }
+  .yr-months { display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px; height: 140px; margin-top: 18px; }
+  .yr-month { display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; gap: 6px; }
+  .yr-month span { display: block; border-radius: 6px 6px 2px 2px; background: #3f3f46; }
+  .yr-month.peak span { background: #e50914; }
+  .yr-month small { color: #71717a; font-size: 11px; font-weight: 800; text-align: center; }
+  .yr-sources { display: grid; gap: 10px; }
+  .yr-source { display: grid; grid-template-columns: minmax(130px, 220px) 1fr 90px; align-items: center; gap: 14px; }
+  .yr-source-name { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13.5px; font-weight: 800; }
+  .yr-source-name span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .yr-bar { height: 10px; border-radius: 999px; background: #18181b; overflow: hidden; }
+  .yr-bar span { display: block; height: 100%; border-radius: 999px; background: #e50914; }
+  .yr-source.muted .yr-bar span { background: #52525b; }
+  .yr-source.muted .yr-source-name { color: #a1a1aa; }
+  .yr-source-n { font-size: 14px; font-weight: 900; text-align: right; }
+  .yr-source-n small { color: #71717a; font-size: 11.5px; font-weight: 700; }
+  .yr-discs { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
+  .yr-discs a { display: block; aspect-ratio: 2 / 3; border-radius: 8px; overflow: hidden; background: #111113; border: 1px solid #1f1f23; color: #71717a; text-decoration: none; }
+  .yr-discs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .yr-discs em { display: flex; height: 100%; align-items: center; justify-content: center; padding: 6px; text-align: center; font-style: normal; font-size: 11px; font-weight: 800; }
+  @media (max-width: 800px) {
+    .yr-tiles, .yr-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .yr-tiles b { font-size: 24px; }
+    .yr-facts b { font-size: 17px; }
+    .yr-posters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .yr-people { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .yr-source { grid-template-columns: minmax(0, 1fr) 70px; }
+    .yr-bar { grid-column: 1 / -1; grid-row: 2; }
+  }
+  :global(html.light) .yr-page { color: #18181b; }
+  :global(html.light) .yr-tiles > div, :global(html.light) .yr-facts > div { background: #fafafa; border-color: #e4e4e7; }
+  :global(html.light) .yr-lede { color: #3f3f46; }
+  :global(html.light) .yr-lede b { color: #18181b; }
+  :global(html.light) .yr-bar, :global(html.light) .yr-face { background: #e4e4e7; }
+  :global(html.light) .yr-month span { background: #d4d4d8; }
+  :global(html.light) .yr-month.peak span { background: #e50914; }
+</style>

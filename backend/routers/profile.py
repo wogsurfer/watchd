@@ -2328,3 +2328,65 @@ async def get_stats_overview(
         },
         "people": people,
     }
+
+
+# ── Days watched (year in review) ──────────────────────────────────────────────
+
+def _day_highlights(plays_by_day: dict) -> dict:
+    """The longest run of days in a row with something watched, and the day
+    with the most plays, from {date: plays}. Ties go to the earliest."""
+    days = sorted(d for d, n in plays_by_day.items() if n)
+    best = None
+    run_start = prev = None
+    for day in days:
+        if prev is None or (day - prev).days != 1:
+            run_start = day
+        length = (day - run_start).days + 1
+        if best is None or length > best["days"]:
+            best = {"days": length, "start": run_start.isoformat(), "end": day.isoformat()}
+        prev = day
+    busiest = None
+    for day in days:
+        if busiest is None or plays_by_day[day] > busiest["plays"]:
+            busiest = {"date": day.isoformat(), "plays": plays_by_day[day]}
+    return {"days_watched": len(days), "longest_streak": best, "busiest_day": busiest}
+
+
+@router.get("/{user_id}/stats/days")
+async def get_stats_days(
+    user_id: int,
+    since: Optional[DateType] = None,
+    until: Optional[DateType] = None,
+    tz: str = "UTC",
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_optional_user),
+):
+    """Plays per day (in the viewer's time zone) between since and until, with
+    the longest streak of days in a row and the busiest day."""
+    await _check_profile_access(user_id, current_user, db)
+    try:
+        _ZoneInfo(tz)
+    except Exception:
+        tz = "UTC"
+    # Plays are stored in UTC; the day is the one it was where you watched.
+    local_day = func.date(func.timezone(tz, func.timezone("UTC", WatchEvent.watched_at)))
+    filters = [
+        WatchEvent.user_id == user_id,
+        WatchEvent.completed == True,
+        WatchEvent.watched_at.isnot(None),
+    ]
+    if since:
+        filters.append(local_day >= since)
+    if until:
+        filters.append(local_day <= until)
+    rows = (await db.execute(
+        select(local_day.label("day"), func.count(WatchEvent.id))
+        .where(*filters)
+        .group_by(local_day)
+        .order_by(local_day)
+    )).all()
+    plays_by_day = {day: count for day, count in rows}
+    return {
+        "days": [{"date": d.isoformat(), "plays": n} for d, n in plays_by_day.items()],
+        **_day_highlights(plays_by_day),
+    }
