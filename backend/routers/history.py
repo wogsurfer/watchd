@@ -1493,6 +1493,8 @@ class SeasonWatchRequest(BaseModel):
     episode_order: str | None = None
     # Where the season was watched, put on each play this adds.
     watch_source: schemas.WatchSource | None = None
+    # When: omitted = now; explicit null = an unknown date.
+    watched_at: datetime | None = None
 
 
 class SeasonSourceUpdate(BaseModel):
@@ -1883,6 +1885,11 @@ async def mark_season_watched(
 
     now = datetime.utcnow()
     today = now.date()
+    watched_at = (
+        body.watched_at.replace(tzinfo=None) if body.watched_at is not None
+        else None if "watched_at" in body.model_fields_set
+        else now
+    )
     existing_q = await db.execute(
         select(Media).where(
             Media.show_id == show.id,
@@ -1950,7 +1957,7 @@ async def mark_season_watched(
             db.add(WatchEvent(
                 user_id=current_user.id,
                 media_id=ep.id,
-                watched_at=now,
+                watched_at=watched_at,
                 completed=True,
                 play_count=1,
                 progress_percent=1.0,
