@@ -2,15 +2,16 @@
 # frontend together), both restarting on their own whenever Docker starts.
 #
 # A third service backs everything up every night into ./backups (see
-# backup.sh). Docker can't write to Google Drive's virtual drive, so a
+# backup.sh), and a fourth watches the site and the backups and sends a push
+# notification when either needs a look (see watchdog.sh; set NTFY_URL in
+# .env to an ntfy.sh topic URL and subscribe to it in the ntfy app). Docker can't write to Google Drive's virtual drive, so a
 # Windows scheduled task copies that folder to Google Drive (see
 # scripts/sync-backups-to-drive.cmd).
 #
 # Start or update after code changes:
 #   docker compose -f docker-compose.watchd.yaml up -d --build
 #
-# The db service matches docker-compose-test-db.yaml and uses the same data
-# folder, so it takes over the existing database container.
+# The database lives in ./pgdata (kept out of git and the image).
 name: scrob
 
 services:
@@ -22,10 +23,12 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    # Only this PC can reach the database (the dev servers use it on 5433);
+    # nothing else on the network can.
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
-      - ./.testdb:/var/lib/postgresql/data
+      - ./pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -72,6 +75,7 @@ services:
       PGDATABASE: ${POSTGRES_DB}
       TZ: Europe/Malta
       KEEP_DAYS: "14"
+      NTFY_URL: ${NTFY_URL:-}
       BACKUP_HOUR: "3"
     volumes:
       - ./backend/data:/data:ro
@@ -81,3 +85,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  watchdog:
+    build: ./backup
+    entrypoint: ["/bin/sh", "/usr/local/bin/watchdog.sh"]
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Malta
+      NTFY_URL: ${NTFY_URL:-}
+    volumes:
+      - ./backups:/backups:ro
