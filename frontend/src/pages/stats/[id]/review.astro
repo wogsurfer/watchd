@@ -122,7 +122,7 @@ const title = year === nowYear ? `${year} so far` : String(year);
           <h2>Your top films</h2>
           <div class="yr-posters">
             {topMovies.map((m: any, n: number) => (
-              <a href={m.tmdb_id ? `/movie/${m.tmdb_id}` : "#"} class="yr-poster">
+              <a href={m.tmdb_id ? `/media/movie/${m.tmdb_id}` : "#"} class="yr-poster">
                 <span class="yr-poster-img">{m.poster_path ? <img src={img(m.poster_path, "w342")} alt="" loading="lazy" /> : <em>{m.title}</em>}<i>{n + 1}</i></span>
                 <span class="yr-cap">{m.title}<small>{m.plays > 1 ? `${m.plays} plays` : m.year ?? ""}</small></span>
               </a>
