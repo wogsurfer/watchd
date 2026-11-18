@@ -219,6 +219,7 @@ const heroSubtitle =
   .ws-pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 26px; }
   .ws-pager span { font-size: 12px; font-weight: 800; letter-spacing: .1em; color: #858585; }
   .ws-btn { padding: 8px 18px; border-radius: 999px; border: 1px solid #3a0b0e; background: #0a0a0a; color: #ffffff; font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; cursor: pointer; transition: border-color .15s ease, background .15s ease; }
+  .ws-review { display: inline-block; margin-top: 18px; text-decoration: none; border-color: #e50914; }
   .ws-btn:hover:not(:disabled) { border-color: #e50914; background: #1a0506; }
   .ws-btn:disabled { opacity: .3; cursor: not-allowed; }
 
@@ -286,6 +287,11 @@ const heroSubtitle =
         <div class="ws-eyebrow">watchd. stats</div>
         <h1 class="ws-title">{heroTitle}</h1>
         <p class="ws-subtitle">{heroSubtitle}</p>
+        {(statsMode === "ytd" || statsMode === "year") && (
+          <a class="ws-btn ws-review" href={`/stats/${statsMode === "ytd" ? "ytd" : statsYear}/review`}>
+            {statsMode === "ytd" ? `${nowYear} in review` : `${statsYear} in review`} →
+          </a>
+        )}
         <nav id="ws-years" class="ws-years" aria-label="Statistics periods"></nav>
       </header>
 

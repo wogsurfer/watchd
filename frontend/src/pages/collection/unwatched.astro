@@ -1,0 +1,111 @@
+---
+// Films on the shelf that have never been played, the ones waiting longest
+// first. Built from the same summaries as the collection page.
+import Base from "../../layouts/Base.astro";
+import CollectionNav from "../../components/CollectionNav.astro";
+import { api, type PhysicalSummary } from "../../lib/api";
+import { shelfAge, unwatchedOnShelf } from "../../lib/collection/unwatched";
+export const prerender = false;
+
+const { token } = Astro.locals;
+Astro.response.headers.set("Cache-Control", "private, no-cache");
+
+let items: PhysicalSummary[] = [];
+let error = "";
+try {
+  items = (await api.physical.items(token)).items;
+} catch (e: unknown) {
+  error = e instanceof Error ? e.message : "Couldn't load the collection";
+}
+
+const waiting = unwatchedOnShelf(items);
+const owned = items.filter((i) => i.status === "owned" && !i.parent_id).length;
+const wishlist = items.filter((i) => i.status === "wishlist" && !i.parent_id).length;
+const films = items.filter((i) => i.status === "owned" && !i.is_set && !i.is_tv && i.tmdb_kind !== "tv").length;
+const hours = Math.round(waiting.reduce((sum, w) => sum + (w.item.runtime || 0), 0) / 60);
+const longest = waiting.find((w) => w.days != null);
+
+// Grouped by how long they've waited.
+const bands: { label: string; min: number }[] = [
+  { label: "Over 10 years", min: 3653 },
+  { label: "5 to 10 years", min: 1826 },
+  { label: "2 to 5 years", min: 730 },
+  { label: "1 to 2 years", min: 365 },
+  { label: "Under a year", min: 0 },
+];
+const groups = bands
+  .map((b, n) => ({
+    label: b.label,
+    rows: waiting.filter((w) => w.days != null && w.days >= b.min && (n === 0 || w.days < bands[n - 1].min)),
+  }))
+  .concat([{ label: "No date", rows: waiting.filter((w) => w.days == null) }])
+  .filter((g) => g.rows.length);
+const fmtDate = (s: string | null) =>
+  s ? new Date(`${s}T12:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
+---
+
+<Base title="Unwatched on the shelf">
+  <CollectionNav active="unwatched" owned={owned} wishlist={wishlist} unwatched={waiting.length} />
+
+  {error && <p class="uw-empty">{error}</p>}
+
+  {!error && !waiting.length && <p class="uw-empty">Every film on your shelf has been watched.</p>}
+
+  {!error && waiting.length > 0 && (
+    <>
+      <div class="uw-tiles">
+        <div class="uw-tile"><b>{waiting.length.toLocaleString()}</b><span>films never played</span></div>
+        <div class="uw-tile"><b>{films ? Math.round((waiting.length / films) * 100) : 0}%</b><span>of the films you own</span></div>
+        <div class="uw-tile"><b>{hours.toLocaleString()}</b><span>hours of film waiting</span></div>
+        {longest && (
+          <div class="uw-tile"><b>{shelfAge(longest.days)}</b><span>the longest wait: {longest.item.title}</span></div>
+        )}
+      </div>
+
+      {groups.map((g) => (
+        <section class="uw-group">
+          <h2>{g.label} <span>{g.rows.length}</span></h2>
+          <div class="uw-grid">
+            {g.rows.map(({ item, since, days }) => (
+              <a class="uw-card" href={`/collection?item=${item.id}`} title={`${item.title}${item.edition ? ` · ${item.edition}` : ""}`}>
+                <span class="uw-cover">
+                  {item.cover ? <img src={item.cover} alt="" loading="lazy" decoding="async" /> : <span class="uw-nocover">{item.title}</span>}
+                  {item.format && <i>{item.format}</i>}
+                </span>
+                <span class="uw-title">{item.title}</span>
+                <span class="uw-sub">{shelfAge(days)}{since && <> · since {fmtDate(since)}</>}</span>
+              </a>
+            ))}
+          </div>
+        </section>
+      ))}
+      <p class="uw-note">Films you've played in Watchd or marked as seen in Collectorz aren't listed. TV series are left out, and box sets are shown film by film.</p>
+    </>
+  )}
+</Base>
+
+<style>
+  .uw-empty { color: #71717a; }
+  .uw-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-bottom: 28px; }
+  .uw-tile { padding: 16px; border-radius: 16px; background: #0a0a0a; border: 1px solid #1c1c1f; }
+  .uw-tile b { display: block; color: #f4f4f5; font-size: 26px; font-weight: 900; letter-spacing: -.03em; }
+  .uw-tile span { color: #a1a1aa; font-size: 12.5px; font-weight: 700; }
+  .uw-group { margin-bottom: 32px; }
+  .uw-group h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; color: #f4f4f5; font-size: 18px; font-weight: 900; letter-spacing: -.01em; }
+  .uw-group h2 span { padding: 0 8px; border-radius: 999px; background: #27272a; color: #d4d4d8; font-size: 12px; line-height: 20px; }
+  .uw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 16px; }
+  .uw-card { display: block; min-width: 0; text-decoration: none; }
+  .uw-cover { position: relative; display: block; aspect-ratio: 2 / 3; border-radius: 10px; overflow: hidden; background: #111113; border: 1px solid #1f1f23; transition: border-color .15s, transform .15s; }
+  .uw-card:hover .uw-cover { border-color: #e50914; transform: translateY(-2px); }
+  .uw-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .uw-cover i { position: absolute; left: 6px; bottom: 6px; padding: 1px 7px; border-radius: 999px; background: rgba(0, 0, 0, .8); color: #e4e4e7; font-style: normal; font-size: 10px; font-weight: 800; }
+  .uw-nocover { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 10px; text-align: center; color: #71717a; font-size: 12px; font-weight: 800; }
+  .uw-title { display: block; margin-top: 7px; color: #e4e4e7; font-size: 13px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .uw-sub { display: block; margin-top: 1px; color: #a1a1aa; font-size: 11.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .uw-note { margin-top: 8px; color: #71717a; font-size: 12px; }
+  :global(html.light) .uw-tile { background: #fafafa; border-color: #e4e4e7; }
+  :global(html.light) .uw-tile b, :global(html.light) .uw-group h2 { color: #18181b; }
+  :global(html.light) .uw-group h2 span { background: #e4e4e7; color: #3f3f46; }
+  :global(html.light) .uw-title { color: #18181b; }
+  :global(html.light) .uw-cover { background: #f4f4f5; border-color: #e4e4e7; }
+</style>
