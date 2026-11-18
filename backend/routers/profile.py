@@ -1399,6 +1399,19 @@ from zoneinfo import ZoneInfo as _ZoneInfo
 from datetime import timezone as _Timezone
 
 
+def _top_movie_order(card):
+    """Top films: your highest rated first, then the most played, then the
+    best IMDb score, then the title. Unrated films come after every rated one."""
+    rating = card.get("rating")
+    return (
+        rating is None,
+        -(rating or 0),
+        -card.get("plays", 0),
+        -(card.get("imdb_rating") or 0),
+        (card.get("title") or "").casefold(),
+    )
+
+
 def _so_year(value):
     if not value:
         return None
@@ -2145,7 +2158,32 @@ async def get_stats_overview(
             "year": year, "plays": movie_plays.get(key, 0),
         })
 
-    movie_cards.sort(key=lambda c: (-c["plays"], (c["title"] or "").casefold()))
+    # Your own rating of each film (any time, not just this period), and its
+    # IMDb score to order films you rated the same.
+    film_ratings, film_imdb = {}, {}
+    for start in range(0, len(movie_media_ids), 500):
+        res = await db.execute(
+            select(Media.id, Media.tmdb_id, Rating.rating, Media.tmdb_data["imdb_rating"].astext)
+            .outerjoin(Rating, (Rating.media_id == Media.id)
+                       & (Rating.user_id == user_id)
+                       & Rating.rating.isnot(None)
+                       & Rating.season_number.is_(None))
+            .where(Media.id.in_(movie_media_ids[start:start + 500]))
+        )
+        for mid, m_tmdb, value, imdb in res.all():
+            key = m_tmdb or mid
+            if value is not None:
+                film_ratings[key] = float(value)
+            try:
+                film_imdb[key] = float(imdb)
+            except (TypeError, ValueError):
+                pass
+    for card in movie_cards:
+        key = card["tmdb_id"]
+        card["rating"] = film_ratings.get(key) if key else None
+        card["imdb_rating"] = film_imdb.get(key) if key else None
+
+    movie_cards.sort(key=_top_movie_order)
     top_movies = movie_cards[:10]
     box_office["top"] = sorted(box_office["top"], key=lambda c: -c["revenue"])[:10]
 
