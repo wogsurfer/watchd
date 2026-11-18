@@ -124,7 +124,7 @@ const title = year === nowYear ? `${year} so far` : String(year);
             {topMovies.map((m: any, n: number) => (
               <a href={m.tmdb_id ? `/media/movie/${m.tmdb_id}` : "#"} class="yr-poster">
                 <span class="yr-poster-img">{m.poster_path ? <img src={img(m.poster_path, "w342")} alt="" loading="lazy" /> : <em>{m.title}</em>}<i>{n + 1}</i></span>
-                <span class="yr-cap">{m.title}<small>{m.plays > 1 ? `${m.plays} plays` : m.year ?? ""}</small></span>
+                <span class="yr-cap">{m.title}<small>{[m.rating != null ? `★ ${m.rating}` : "", m.plays > 1 ? `${m.plays} plays` : "", m.rating == null && m.plays <= 1 ? m.year ?? "" : ""].filter(Boolean).join(" · ")}</small></span>
               </a>
             ))}
           </div>

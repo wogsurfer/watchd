@@ -800,7 +800,7 @@ const heroSubtitle =
 
     if ((mv.top_movies || []).length) {
       out.push(H3('Top Movies'));
-      out.push(posterGrid(mv.top_movies, movieHref, m => `<b>${num(m.plays)}</b> ${m.plays === 1 ? 'Play' : 'Plays'}`));
+      out.push(posterGrid(mv.top_movies, movieHref, m => [m.rating != null ? `<b>★ ${m.rating}</b>` : '', m.plays > 1 || m.rating == null ? `${num(m.plays)} ${m.plays === 1 ? 'Play' : 'Plays'}` : ''].filter(Boolean).join(' · ')));
     }
     out.push(H3('Movie Genres') + genreStrip(mv.genres, ['Movie', 'Movies']));
     out.push(H3('Movies by Release Year') + `<div class="ws-card">${barChart(mv.release_years, { tip: 'movies' })}</div>`);
