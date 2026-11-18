@@ -427,6 +427,13 @@ fun CollectionScreen(onBack: () -> Unit, openDisc: (Int) -> Unit) {
     LoadContent(state, reload) { data ->
         val children = remember(data) { data.items.filter { it.parentId != null }.groupBy { it.parentId!! } }
         val top = remember(data) { data.items.filter { it.parentId == null } }
+        // As on the site: a set counts as seen once all its films are.
+        val seen = remember(data) {
+            top.associate { item ->
+                val k = children[item.id].orEmpty()
+                item.id to if (item.isSet) k.isNotEmpty() && k.all { it.seen } else item.seen
+            }
+        }
         val q = query.trim().lowercase()
         val shown = top.filter { item ->
             val inSet = children[item.id].orEmpty()
@@ -436,7 +443,7 @@ fun CollectionScreen(onBack: () -> Unit, openDisc: (Int) -> Unit) {
                 "All" -> item.status != "wishlist"
                 else -> item.status != "wishlist" && (item.format == shelf || inSet.any { it.format == shelf })
             } && (q.isEmpty() || item.title.orEmpty().lowercase().contains(q) || inSet.any { it.title.orEmpty().lowercase().contains(q) }) &&
-                (!unseenOnly || !item.seen) && (!newOnly || item.unedited)
+                (!unseenOnly || seen[item.id] != true) && (!newOnly || item.unedited)
         }.let { found ->
             val shelfOrder = compareBy<PhysicalItem> { shelfKey(it) }.thenBy { it.title.orEmpty() }
             when (order) {
@@ -507,7 +514,7 @@ fun CollectionScreen(onBack: () -> Unit, openDisc: (Int) -> Unit) {
                 val small = columns >= 5
                 Box(Modifier.clickable { openDisc(item.id) }) {
                         CaseCover(item.cover, Modifier.fillMaxWidth())
-                        if (item.seen) WatchedMark(true, Modifier.align(Alignment.TopEnd).padding(if (small) 3.dp else 5.dp).size(if (small) 15.dp else 22.dp))
+                        if (seen[item.id] == true) WatchedMark(true, Modifier.align(Alignment.TopEnd).padding(if (small) 3.dp else 5.dp).size(if (small) 15.dp else 22.dp))
                         // As on the site: never edited, no cover scan or details yet.
                         if (item.unedited) {
                             Text(
