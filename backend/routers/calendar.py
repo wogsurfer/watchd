@@ -22,7 +22,7 @@ from models.lists import List, ListItem
 from models.watchlist import MovieWatchlist
 from models.profile import UserProfileData
 from core import tmdb
-from core.episode_badges import episode_badge, last_season, season_types
+from core.episode_badges import episode_badge, last_season, schedule_types, season_types
 from core.movie_releases import COUNTRY_NAMES, release_countries, upcoming_releases
 from routers.media import check_tmdb_key, get_user_tmdb_key
 
@@ -369,6 +369,20 @@ async def get_tvmaze_episodes(
         })
 
     return results
+
+
+async def _tvmaze_season_dates(show_title: str) -> dict[int, dict[int, str]]:
+    """Every dated episode TVMaze has for a show, as {season: {episode: "YYYY-MM-DD"}}."""
+    if not show_title:
+        return {}
+    show = await _cached_tvmaze_show(show_title)
+    web_channel = show.get("web_channel")
+    out: dict[int, dict[int, str]] = {}
+    for ep in show.get("episodes") or []:
+        airstamp = tvmaze_release(ep, web_channel)
+        if airstamp and ep.get("season") is not None and ep.get("number") is not None:
+            out.setdefault(ep["season"], {})[ep["number"]] = airstamp.date().isoformat()
+    return out
 
 
 def _tmdb_season(show, season_number: int) -> dict:
@@ -771,26 +785,24 @@ async def calendar_upcoming(
         },
         tmdb_api_key,
     )
-    # TMDB often lists a season only up to its break, so the break is also
-    # looked for in the schedule's own dates (a mid-season finale TMDB
-    # can't show yet).
+    # TMDB often lists a season only up to its break, or has it out of date,
+    # so the break is also checked against the schedule: the whole season's
+    # dates, not just the ones in this window (the episode after a break is
+    # usually weeks past it).
     for show, scheduled in schedule_results:
         if not show.tmdb_id:
             continue
-        seasons: dict[int, dict[int, dict]] = {}
-        for ep in scheduled:
-            s_no, e_no = ep.get("season"), ep.get("episode")
-            if s_no is None or e_no is None or not ep.get("air_date"):
-                continue
-            seasons.setdefault(s_no, {})[e_no] = {
-                "episode_number": e_no,
-                "air_date": str(ep["air_date"])[:10],
-                "episode_type": episode_types.get((show.tmdb_id, s_no, e_no)),
+        in_window = {ep["season"] for ep in scheduled if ep.get("season") is not None}
+        if not in_window:
+            continue
+        full = await _tvmaze_season_dates(show.title)
+        for s_no in in_window:
+            dates = full.get(s_no) or {}
+            tmdb_types = {
+                e_no: kind for (tid, s, e_no), kind in episode_types.items() if tid == show.tmdb_id and s == s_no
             }
-        for s_no, eps in seasons.items():
-            for e_no, kind in season_types(list(eps.values())).items():
-                if kind == "mid_season":
-                    episode_types[(show.tmdb_id, s_no, e_no)] = kind
+            for e_no, kind in schedule_types(tmdb_types, dates).items():
+                episode_types[(show.tmdb_id, s_no, e_no)] = kind
 
     # -----------------------------------------------------
     # 5. Build calendar episodes.

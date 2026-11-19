@@ -67,6 +67,31 @@ def season_types(episodes: list[dict]) -> dict[int, str | None]:
     return types
 
 
+def schedule_types(tmdb_types: dict[int, str | None], air_dates: dict[int, str]) -> dict[int, str | None]:
+    """A season's episode types checked against a schedule's air dates (every
+    dated episode of the season, by number). TMDB's mid-season finale is
+    dropped where the schedule has the next episode under four weeks later
+    (TMDB can be out of date or numbered differently), and one is added
+    before any break of four weeks or more."""
+    from datetime import date
+
+    numbers = sorted(set(air_dates) | set(tmdb_types))
+    types = {n: tmdb_types.get(n) for n in numbers}
+    dated = sorted(air_dates)
+    for this, nxt in zip(dated, dated[1:]):
+        if types.get(this) != "mid_season":
+            continue
+        try:
+            gap = (date.fromisoformat(air_dates[nxt][:10]) - date.fromisoformat(air_dates[this][:10])).days
+        except (TypeError, ValueError):
+            continue
+        if gap < MID_SEASON_GAP_DAYS:
+            types[this] = "standard"
+    return season_types([
+        {"episode_number": n, "air_date": air_dates.get(n), "episode_type": types[n]} for n in numbers
+    ])
+
+
 def season_badges(season_data: dict, show_status: str | None = None, last: int | None = None) -> dict[int, str]:
     """Labels for the episodes of a TMDB season response, by episode number."""
     episodes = sorted(season_data.get("episodes") or [], key=lambda e: e.get("episode_number") or 0)
