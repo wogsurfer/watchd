@@ -22,7 +22,7 @@ from models.lists import List, ListItem
 from models.watchlist import MovieWatchlist
 from models.profile import UserProfileData
 from core import tmdb
-from core.episode_badges import episode_badge, last_season
+from core.episode_badges import episode_badge, last_season, season_types
 from core.movie_releases import COUNTRY_NAMES, release_countries, upcoming_releases
 from routers.media import check_tmdb_key, get_user_tmdb_key
 
@@ -396,7 +396,7 @@ async def _episode_types(pairs: set[tuple[int, int]], api_key: str | None) -> di
                 data = await tmdb.get_season(tmdb_id, season, api_key=api_key)
             except Exception:
                 return []
-            return [((tmdb_id, season, e.get("episode_number")), e.get("episode_type")) for e in data.get("episodes") or []]
+            return [((tmdb_id, season, n), kind) for n, kind in season_types(data.get("episodes") or []).items()]
 
     types: dict[tuple[int, int, int], str] = {}
     for rows in await asyncio.gather(*(one(t, s) for t, s in pairs)):

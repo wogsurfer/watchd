@@ -130,6 +130,12 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 const summary = (episodes: number, films: number) =>
   [episodes ? plural(episodes, "episode", "episodes") : null, films ? plural(films, "film release", "film releases") : null]
     .filter(Boolean).join(" · ");
+
+// The Include filters: episodes, and each kind of film release there is.
+const KIND_LABELS: Record<string, string> = { tv: "TV shows", cinema: "In cinemas", digital: "Digital", streaming: "Streaming", disc: "Disc" };
+const kindCounts: Record<string, number> = { tv: total };
+for (const m of data.movies ?? []) kindCounts[m.kind] = (kindCounts[m.kind] ?? 0) + 1;
+const kinds = Object.keys(KIND_LABELS).filter((k) => kindCounts[k]);
 ---
 
 <Base title="Calendar">
@@ -142,6 +148,35 @@ const summary = (episodes: number, films: number) =>
       {total + filmTotal > 0 && <p class="cal-total">{summary(total, filmTotal)}{lastDay && lastDay > iso(weeks[SHOWN_WEEKS - 1]?.days[6].date ?? today) ? <> through {fmt(parse(lastDay), { month: "long", year: "numeric" })}</> : <> over the next {SHOWN_WEEKS} weeks</>}</p>}
     </header>
 
+    {total + filmTotal > 0 && (
+      <div class="cal-tools">
+        {kinds.length > 1 && (
+          <div class="cal-kinds" role="group" aria-label="Include">
+            <span class="cal-tools-label">Include</span>
+            {kinds.map((k) => (
+              <button type="button" class:list={["cal-kind", `cal-kind-${k}`]} data-kind={k} aria-pressed="true">
+                {KIND_LABELS[k]} <b>{kindCounts[k]}</b>
+              </button>
+            ))}
+          </div>
+        )}
+        <div class="cal-jump">
+          <button type="button" class="cal-jump-btn" aria-expanded="false" aria-controls="cal-month">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            Jump to
+          </button>
+          <div id="cal-month" class="cal-month" hidden data-first={iso(weekStart)} data-last={lastDay ?? iso(today)} data-today={todayIso}>
+            <div class="cal-month-head">
+              <button type="button" data-step="-1" aria-label="Previous month">‹</button>
+              <span class="cal-month-name"></span>
+              <button type="button" data-step="1" aria-label="Next month">›</button>
+            </div>
+            <div class="cal-month-grid"></div>
+          </div>
+        </div>
+      </div>
+    )}
+
     {error && <div class="cal-error">{error}</div>}
 
     {!error && total + filmTotal === 0 && (
@@ -153,20 +188,20 @@ const summary = (episodes: number, films: number) =>
 
     {total + filmTotal > 0 && slots.map((slot) => {
       if (slot.type === "gap") {
-        return <p class="cal-gap">Nothing for {slot.weeks === 1 ? "a week" : `${slot.weeks} weeks`}</p>;
+        return <p class="cal-gap" data-start={weeks[slot.from].days[0].key}>Nothing for {slot.weeks === 1 ? "a week" : `${slot.weeks} weeks`}</p>;
       }
       const week = weeks[slot.index];
       return (
-      <section class="cal-week">
+      <section class="cal-week" data-start={week.days[0].key}>
         <div class="cal-week-head">
           <h2>{week.label}</h2>
           <span>{week.range}</span>
-          <span class="cal-week-count">{summary(week.count, week.filmCount) || "Nothing scheduled"}</span>
+          <span class="cal-week-count" data-week-count>{summary(week.count, week.filmCount) || "Nothing scheduled"}</span>
         </div>
 
         <div class="cal-grid">
           {week.days.map((day) => (
-            <div class:list={["cal-day", { past: day.past, today: day.today, empty: day.empty }]}>
+            <div class:list={["cal-day", { past: day.past, today: day.today, empty: day.empty }]} data-date={day.key}>
               <div class="cal-day-head">
                 <span class="cal-dow">{day.today ? "Today" : fmt(day.date, { weekday: "short" })}</span>
                 <span class="cal-dom">{day.date.getUTCDate()}</span>
@@ -176,7 +211,7 @@ const summary = (episodes: number, films: number) =>
                 {day.cards.map((card) => {
                   const Tag = card.href ? "a" : "div";
                   return (
-                    <Tag href={card.href ?? undefined} class:list={["cal-card", { watched: card.watched }]}>
+                    <Tag href={card.href ?? undefined} class:list={["cal-card", { watched: card.watched }]} data-kind="tv" data-n={episodeCount(card)}>
                       <div class="cal-poster">
                         {card.poster ? <img src={card.poster} alt="" loading="lazy" decoding="async" /> : <span>{card.showTitle.slice(0, 1)}</span>}
                         <img
@@ -201,7 +236,7 @@ const summary = (episodes: number, films: number) =>
                   );
                 })}
                 {day.films.map((film) => (
-                  <a href={`/media/movie/${film.tmdb_id}`} class:list={["cal-card", "cal-film", { watched: film.watched }]}>
+                  <a href={`/media/movie/${film.tmdb_id}`} class:list={["cal-card", "cal-film", { watched: film.watched }]} data-kind={film.kind}>
                     <div class="cal-poster">
                       {film.poster_path ? <img src={thumb(film.poster_path)} alt="" loading="lazy" decoding="async" /> : <span>{(film.title ?? "?").slice(0, 1)}</span>}
                       {film.watched && <img class="cal-w" src={watchdIconRed.src} alt="Watched" title="Watched" />}
@@ -222,6 +257,130 @@ const summary = (episodes: number, films: number) =>
   </div>
 </Base>
 
+<script>
+  // ── Include filters: hide kinds of entry, remembered on this device ──────
+  const STORE = "calendar-hidden-kinds";
+  const read = (): Set<string> => {
+    try { return new Set(JSON.parse(localStorage.getItem(STORE) || "[]")); } catch { return new Set(); }
+  };
+  const hidden = read();
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+  function apply() {
+    document.querySelectorAll<HTMLButtonElement>(".cal-kind").forEach((b) => {
+      b.setAttribute("aria-pressed", String(!hidden.has(b.dataset.kind!)));
+    });
+    document.querySelectorAll<HTMLElement>(".cal-card[data-kind]").forEach((c) => {
+      c.hidden = hidden.has(c.dataset.kind!);
+    });
+    document.querySelectorAll<HTMLElement>(".cal-day").forEach((d) => {
+      d.classList.toggle("empty", !d.querySelector(".cal-card:not([hidden])"));
+    });
+    document.querySelectorAll<HTMLElement>(".cal-week").forEach((w) => {
+      let eps = 0, films = 0;
+      w.querySelectorAll<HTMLElement>(".cal-card:not([hidden])").forEach((c) => {
+        if (c.dataset.kind === "tv") eps += Number(c.dataset.n || 1); else films += 1;
+      });
+      const label = [eps ? plural(eps, "episode", "episodes") : "", films ? plural(films, "film release", "film releases") : ""]
+        .filter(Boolean).join(" · ");
+      const el = w.querySelector("[data-week-count]");
+      if (el) el.textContent = label || "Nothing scheduled";
+    });
+    drawMonth();
+  }
+
+  document.querySelectorAll<HTMLButtonElement>(".cal-kind").forEach((b) => {
+    b.addEventListener("click", () => {
+      const k = b.dataset.kind!;
+      if (hidden.has(k)) hidden.delete(k); else hidden.add(k);
+      try { localStorage.setItem(STORE, JSON.stringify([...hidden])); } catch { /* not saved */ }
+      apply();
+    });
+  });
+
+  // ── Jump to: a month you can step through, dots on days with something ──
+  const panel = document.getElementById("cal-month");
+  const jumpBtn = document.querySelector<HTMLButtonElement>(".cal-jump-btn");
+  const first = panel?.dataset.first ?? "";
+  const last = panel?.dataset.last ?? first;
+  const todayIso = panel?.dataset.today ?? "";
+  const monthOf = (day: string) => day.slice(0, 7);
+  let shown = monthOf(todayIso || first);
+  const isoOf = (d: Date) => d.toISOString().slice(0, 10);
+
+  function busyDays(): Set<string> {
+    const out = new Set<string>();
+    document.querySelectorAll<HTMLElement>(".cal-day[data-date]").forEach((d) => {
+      if (d.querySelector(".cal-card:not([hidden])")) out.add(d.dataset.date!);
+    });
+    return out;
+  }
+
+  function drawMonth() {
+    if (!panel) return;
+    const busy = busyDays();
+    const [y, m] = shown.split("-").map(Number);
+    const start = new Date(Date.UTC(y, m - 1, 1));
+    panel.querySelector(".cal-month-name")!.textContent =
+      start.toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
+    panel.querySelector<HTMLButtonElement>('[data-step="-1"]')!.disabled = shown <= monthOf(first);
+    panel.querySelector<HTMLButtonElement>('[data-step="1"]')!.disabled = shown >= monthOf(last);
+    const lead = (start.getUTCDay() + 6) % 7;
+    const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    let html = ["M", "T", "W", "T", "F", "S", "S"].map((d) => `<span class="cal-mh">${d}</span>`).join("");
+    html += "<span></span>".repeat(lead);
+    for (let d = 1; d <= days; d++) {
+      const key = isoOf(new Date(Date.UTC(y, m - 1, d)));
+      const out = key < first || key > last;
+      const cls = ["cal-md", busy.has(key) ? "busy" : "", key === todayIso ? "today" : "", out ? "out" : ""].join(" ");
+      html += `<button type="button" class="${cls}" data-day="${key}"${out ? " disabled" : ""}>${d}</button>`;
+    }
+    panel.querySelector(".cal-month-grid")!.innerHTML = html;
+  }
+
+  function jumpTo(day: string) {
+    // The week (or "Nothing for" line) holding that day: the last one starting on or before it.
+    const d = new Date(`${day}T00:00:00Z`);
+    const monday = isoOf(new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 86400000));
+    let target: HTMLElement | null = null;
+    document.querySelectorAll<HTMLElement>(".cal-week[data-start], .cal-gap[data-start]").forEach((el) => {
+      if (el.dataset.start! <= monday) target = el;
+    });
+    (target as HTMLElement | null)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const dayEl = document.querySelector<HTMLElement>(`.cal-day[data-date="${day}"]`);
+    if (dayEl) {
+      dayEl.classList.add("flash");
+      setTimeout(() => dayEl.classList.remove("flash"), 1600);
+    }
+  }
+
+  function setOpen(open: boolean) {
+    if (!panel || !jumpBtn) return;
+    panel.hidden = !open;
+    jumpBtn.setAttribute("aria-expanded", String(open));
+    if (open) drawMonth();
+  }
+
+  jumpBtn?.addEventListener("click", (e) => { e.stopPropagation(); setOpen(panel!.hidden); });
+  panel?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const t = e.target as HTMLElement;
+    const step = t.closest<HTMLElement>("[data-step]");
+    if (step) {
+      const [y, m] = shown.split("-").map(Number);
+      shown = isoOf(new Date(Date.UTC(y, m - 1 + Number(step.dataset.step), 1))).slice(0, 7);
+      drawMonth();
+      return;
+    }
+    const day = t.closest<HTMLElement>("[data-day]");
+    if (day) { setOpen(false); jumpTo(day.dataset.day!); }
+  });
+  document.addEventListener("click", () => setOpen(false));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") setOpen(false); });
+
+  apply();
+</script>
+
 <style>
   .cal-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 24px; margin-bottom: 2rem; }
   .cal-sub { margin-top: 4px; color: #a1a1aa; font-size: 14px; }
@@ -229,6 +388,43 @@ const summary = (episodes: number, films: number) =>
   .cal-error { padding: 16px; border: 1px solid rgba(239, 68, 68, .4); border-radius: 12px; color: #fca5a5; }
   .cal-empty { padding: 48px 16px; text-align: center; color: #71717a; border: 1px dashed #27272a; border-radius: 16px; }
   .cal-empty-title { color: #e4e4e7; font-weight: 800; font-size: 18px; margin-bottom: 4px; }
+
+  /* Include filters and Jump to. */
+  .cal-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: -0.75rem 0 1.75rem; }
+  .cal-kinds { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .cal-tools-label { color: #71717a; font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; margin-right: 4px; }
+  .cal-kind { padding: 5px 11px; border-radius: 999px; border: 1px solid #3f3f46; background: #18181b; color: #e4e4e7; font-size: 12.5px; font-weight: 700; cursor: pointer; transition: opacity .15s, background .15s; }
+  .cal-kind b { margin-left: 3px; color: #a1a1aa; font-weight: 800; }
+  .cal-kind[aria-pressed="false"] { opacity: .45; background: transparent; text-decoration: line-through; }
+  .cal-kind-tv[aria-pressed="true"] { border-color: rgba(239, 68, 68, .55); }
+  .cal-kind-cinema[aria-pressed="true"] { border-color: rgba(249, 115, 22, .55); }
+  .cal-kind-digital[aria-pressed="true"] { border-color: rgba(20, 184, 166, .55); }
+  .cal-kind-streaming[aria-pressed="true"] { border-color: rgba(132, 204, 22, .5); }
+  .cal-kind-disc[aria-pressed="true"] { border-color: rgba(244, 244, 245, .45); }
+  .cal-card[hidden] { display: none; }
+  .cal-jump { position: relative; margin-left: auto; }
+  .cal-jump-btn { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 10px; border: 1px solid #3f3f46; background: #18181b; color: #e4e4e7; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .cal-jump-btn:hover { border-color: #52525b; }
+  .cal-month { position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; width: 268px; max-width: calc(100vw - 32px); padding: 12px; border-radius: 14px; background: #111113; border: 1px solid #3f3f46; box-shadow: 0 16px 40px rgba(0, 0, 0, .6); }
+  .cal-month[hidden] { display: none; }
+  .cal-month-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .cal-month-head button { width: 28px; height: 28px; border-radius: 8px; color: #e4e4e7; font-size: 18px; cursor: pointer; }
+  .cal-month-head button:hover:not(:disabled) { background: #27272a; }
+  .cal-month-head button:disabled { opacity: .25; cursor: default; }
+  .cal-month-name { color: #f4f4f5; font-weight: 800; font-size: 14px; }
+  .cal-month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+  .cal-month-grid :global(.cal-mh) { color: #71717a; font-size: 10px; font-weight: 800; padding: 2px 0 4px; }
+  .cal-month-grid :global(.cal-md) { position: relative; height: 32px; border-radius: 8px; color: #a1a1aa; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+  .cal-month-grid :global(.cal-md:hover:not(:disabled)) { background: #27272a; color: #f4f4f5; }
+  .cal-month-grid :global(.cal-md.busy) { color: #f4f4f5; }
+  .cal-month-grid :global(.cal-md.busy::after) { content: ""; position: absolute; left: 50%; bottom: 4px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: #ef4444; }
+  .cal-month-grid :global(.cal-md.today) { outline: 1px solid rgba(239, 68, 68, .7); }
+  .cal-month-grid :global(.cal-md.out) { opacity: .25; cursor: default; }
+  .cal-week, .cal-gap { scroll-margin-top: 90px; }
+  .cal-day.flash { box-shadow: 0 0 0 2px rgba(239, 68, 68, .8); transition: box-shadow .3s; }
+  :global(html.light) .cal-kind, :global(html.light) .cal-jump-btn { background: #fff; border-color: #d4d4d8; color: #27272a; }
+  :global(html.light) .cal-month { background: #fff; border-color: #d4d4d8; }
+  :global(html.light) .cal-month-name { color: #18181b; }
 
   .cal-week + .cal-week { margin-top: 3rem; }
   .cal-gap { margin: 2.25rem 0 0; padding: 10px 14px; border: 1px dashed #27272a; border-radius: 12px; color: #71717a; font-size: 13px; font-weight: 700; text-align: center; }
