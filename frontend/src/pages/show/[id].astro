@@ -254,6 +254,9 @@ const watchedRange = (() => {
               {(() => { const n = show.networks?.find(n => n.logo_path); return n ? <NetworkLogo src={n.logo_path!} name={n.name} /> : null; })()}
             </div>
 
+            {/* The canon lists it's on (IMDb Top 250 TV, Emmy winners), filled after load. */}
+            <div data-canon-show={String(show.tmdb_id ?? id)} class="canon-badges" hidden></div>
+
             <!-- Show dates and countries -->
               {(show.first_air_date || show.last_air_date || show.production_countries?.length > 0) && (
                 <div class="mb-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-400">
@@ -571,7 +574,28 @@ const watchedRange = (() => {
   .character-hover:hover .character-full {
     display: block;
   }
+
+  .canon-badges { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 10px; }
+  :global(.canon-badge) { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgb(234 179 8 / .35); background: rgb(234 179 8 / .1); color: #facc15; font-size: 12px; font-weight: 800; }
+  :global(.canon-badge:hover) { background: rgb(234 179 8 / .2); }
+  :global(.canon-badge b) { color: #fff; }
 </style>
+
+<script>
+  // The canon lists the series is on, as gold badges under its scores.
+  document.querySelectorAll<HTMLElement>("[data-canon-show]").forEach(async (box) => {
+    try {
+      const res = await fetch(`/api/proxy/canon/show/${box.dataset.canonShow}`);
+      if (!res.ok) return;
+      const lists = await res.json();
+      if (!lists.length) return;
+      box.innerHTML = lists.map((l: any) =>
+        `<a class="canon-badge" href="/canon/${l.slug}">${l.rank ? `<b>#${l.rank}</b> ` : ""}${l.name}</a>`
+      ).join("");
+      box.hidden = false;
+    } catch { /* Stays hidden. */ }
+  });
+</script>
 
 <script>
   const zoomBtn = document.getElementById('poster-zoom-btn');

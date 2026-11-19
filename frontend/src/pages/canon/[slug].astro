@@ -18,6 +18,9 @@ try {
   error = e instanceof Error ? e.message : String(e);
 }
 const pct = list && list.total ? Math.round((list.seen / list.total) * 100) : 0;
+// "1983, 1984, 1989" for an Emmy winner's ceremonies.
+const winYears = (years: number[]) => years.join(", ");
+const seenWord = list?.kind === "tv" ? "watched" : "seen";
 ---
 
 <Base title={list?.name ?? "List"}>
@@ -36,7 +39,7 @@ const pct = list && list.total ? Math.round((list.seen / list.total) * 100) : 0;
         <p class="text-zinc-400 mt-2 max-w-2xl">{list.blurb}</p>
         <div class="canon-progress">
           <div class="canon-bar"><span style={`width:${pct}%`}></span></div>
-          <p><b>{list.seen.toLocaleString()}</b> of {list.total.toLocaleString()} seen · {pct}%</p>
+          <p><b>{list.seen.toLocaleString()}</b> of {list.total.toLocaleString()} {seenWord} · {pct}%</p>
         </div>
         <div class="canon-filter" role="group" aria-label="Show">
           <button type="button" data-filter="all" aria-pressed="true">All</button>
@@ -48,7 +51,7 @@ const pct = list && list.total ? Math.round((list.seen / list.total) * 100) : 0;
       <ul class="canon-grid">
         {list.items.map((m) => (
           <li data-seen={m.watched ? "1" : "0"}>
-            <a href={`/media/movie/${m.tmdb_id}`} class={`canon-film ${m.watched ? "is-seen" : ""}`}>
+            <a href={list!.kind === "tv" ? `/show/${m.tmdb_id}` : `/media/movie/${m.tmdb_id}`} class={`canon-film ${m.watched ? "is-seen" : ""}`}>
               <div class="canon-poster">
                 {m.poster_path
                   ? <img src={m.poster_path} alt={m.title} loading="lazy" decoding="async" />
@@ -57,7 +60,7 @@ const pct = list && list.total ? Math.round((list.seen / list.total) * 100) : 0;
                 {m.watched && <img class="canon-w" src={wRed.src} alt="Seen" />}
               </div>
               <b>{m.title}</b>
-              <span>{m.ceremony ? `${m.year ?? ""} · Oscar ${m.ceremony}` : m.year}</span>
+              <span>{m.ceremony ? `${m.year ?? ""} · Oscar ${m.ceremony}` : m.wins?.length ? `${m.year ?? ""} · Won ${winYears(m.wins)}` : m.year}</span>
             </a>
           </li>
         ))}

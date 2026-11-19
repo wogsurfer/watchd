@@ -420,6 +420,8 @@ data class CanonSummary(
     val slug: String,
     val name: String,
     val blurb: String = "",
+    /** "movie" or "tv". */
+    val kind: String = "movie",
     val total: Int = 0,
     val seen: Int = 0,
     val posters: List<String> = emptyList(),
@@ -433,6 +435,8 @@ data class CanonItem(
     val rank: Int? = null,
     val posterPath: String? = null,
     val watched: Boolean = false,
+    /** Emmy lists: the ceremonies it won. */
+    val wins: List<Int> = emptyList(),
 )
 
 @Serializable
@@ -441,6 +445,7 @@ data class CanonList(
     val name: String,
     val blurb: String = "",
     val ranked: Boolean = false,
+    val kind: String = "movie",
     val total: Int = 0,
     val seen: Int = 0,
     val items: List<CanonItem> = emptyList(),

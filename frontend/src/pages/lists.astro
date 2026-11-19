@@ -14,6 +14,7 @@ let watchlist: { count: number; posters: { url: string; adult: boolean }[] } | n
 let error = "";
 // The film canon (IMDb Top 250, AFI 100...) with how much of each you've seen.
 let canon: CanonSummary[] = [];
+let canonGroups: { title: string; blurb: string; lists: CanonSummary[] }[] = [];
 
 try {
   const [myData, pubData, films] = await Promise.all([
@@ -22,6 +23,10 @@ try {
     api.watchlist.getAll(token!).catch(() => null),
   ]);
   canon = (await api.canon.lists(token!).catch(() => [])).filter((c) => c.total > 0);
+  canonGroups = [
+    { title: "Film Canon", blurb: "The lists every film fan works through, and how far you've got.", lists: canon.filter((c) => c.kind !== "tv") },
+    { title: "TV Canon", blurb: "The series lists to work through, and how many you've watched.", lists: canon.filter((c) => c.kind === "tv") },
+  ].filter((g) => g.lists.length > 0);
   lists = myData.lists.filter((l) => l.name.toLowerCase() !== "movies");
   if (films) {
     watchlist = {
@@ -207,12 +212,12 @@ try {
       </div>
     )}
 
-    {canon.length > 0 && (
+    {canonGroups.map((group) => (
       <div class="mt-16 pt-10 border-t border-zinc-800/50">
-        <h2 class="section-headline mb-2">Film Canon</h2>
-        <p class="text-sm text-zinc-400 mb-6">The lists every film fan works through, and how far you've got.</p>
+        <h2 class="section-headline mb-2">{group.title}</h2>
+        <p class="text-sm text-zinc-400 mb-6">{group.blurb}</p>
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-          {canon.map((c) => {
+          {group.lists.map((c) => {
             const pct = Math.round((c.seen / c.total) * 100);
             return (
               <a href={`/canon/${c.slug}`} class="canon-card group">
@@ -230,7 +235,7 @@ try {
           })}
         </div>
       </div>
-    )}
+    ))}
 
     {publicLists.length > 0 && (
       <div class="mt-16 pt-10 border-t border-zinc-800/50">

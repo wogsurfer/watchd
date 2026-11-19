@@ -62,6 +62,7 @@ class Api(server: String, private val token: String?) {
     suspend fun canonLists(): List<CanonSummary> = get("canon")
     suspend fun canonList(slug: String): CanonList = get("canon/$slug")
     suspend fun canonFilm(tmdbId: Int): List<CanonBadge> = get("canon/film/$tmdbId")
+    suspend fun canonShow(tmdbId: Int): List<CanonBadge> = get("canon/show/$tmdbId")
     suspend fun filmScores(tmdbId: Int): MdbScores = get("canon/scores/$tmdbId")
     suspend fun totals(): Totals = get("dashboard/stats")
     suspend fun holidayTheme(): HolidayTheme? = theme().theme

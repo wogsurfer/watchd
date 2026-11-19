@@ -325,7 +325,7 @@ private fun SignedIn(session: Session, incoming: Intent?, onHandled: () -> Unit,
                 composable<HistoryRoute> { HistoryScreen(openShow, openMovie) }
                 composable<HistoryOfRoute> { HistoryScreen(openShow, openMovie, startOn = it.toRoute<HistoryOfRoute>().type) }
                 composable<YouRoute> { YouScreen(openWatchlist = { nav.navigate(WatchlistRoute) }, openList = { nav.navigate(ListRoute(it)) }, openStats = { nav.navigate(StatsRoute) }, openCanon = { nav.navigate(CanonRoute(it)) }) }
-                composable<CanonRoute> { CanonScreen(it.toRoute<CanonRoute>().slug, onBack = { nav.popBackStack() }, openMovie = openMovie) }
+                composable<CanonRoute> { CanonScreen(it.toRoute<CanonRoute>().slug, onBack = { nav.popBackStack() }, openMovie = openMovie, openShow = openShow) }
                 composable<StatsRoute> { StatsScreen(onBack = { nav.popBackStack() }) }
                 composable<PersonRoute> { PersonScreen(it.toRoute<PersonRoute>().id, onBack = { nav.popBackStack() }, openShow = openShow, openMovie = openMovie) }
                 composable<CollectionRoute> { CollectionScreen(onBack = { nav.popBackStack() }, openDisc = { nav.navigate(DiscRoute(it)) }) }
@@ -335,7 +335,8 @@ private fun SignedIn(session: Session, incoming: Intent?, onHandled: () -> Unit,
                 composable<MovieRoute> { MovieScreen(it.toRoute<MovieRoute>().tmdbId, onBack = { nav.popBackStack() }, openMovie = openMovie, openPerson = openPerson, openDisc = { id -> nav.navigate(DiscRoute(id)) }, openCanon = { nav.navigate(CanonRoute(it)) }) }
                 composable<ShowRoute> {
                     ShowScreen(it.toRoute<ShowRoute>().tmdbId, onBack = { nav.popBackStack() }, openSeason = { show, season -> nav.navigate(SeasonRoute(show, season)) }, openPerson = openPerson, openDisc = { id -> nav.navigate(DiscRoute(id)) },
-                        openEpisode = { show, season, episode -> nav.navigate(EpisodeRoute(show, season, episode)) })
+                        openEpisode = { show, season, episode -> nav.navigate(EpisodeRoute(show, season, episode)) },
+                        openCanon = { slug -> nav.navigate(CanonRoute(slug)) })
                 }
                 composable<SeasonRoute> {
                     val route = it.toRoute<SeasonRoute>()

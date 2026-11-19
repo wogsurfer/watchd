@@ -1140,6 +1140,8 @@ export interface CanonSummary {
   slug: string;
   name: string;
   blurb: string;
+  /** "movie" or "tv": what the list holds. */
+  kind?: "movie" | "tv";
   total: number;
   seen: number;
   posters: string[];
@@ -1153,10 +1155,13 @@ export interface CanonItem {
   poster_path: string | null;
   watched: boolean;
   ceremony?: number;
+  /** Emmy lists: the ceremonies it won. */
+  wins?: number[];
 }
 
 export interface CanonList extends Omit<CanonSummary, "posters"> {
   ranked: boolean;
+  kind?: "movie" | "tv";
   items: CanonItem[];
 }
 

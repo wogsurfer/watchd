@@ -534,9 +534,11 @@ fun YouScreen(openWatchlist: () -> Unit, openList: (Int) -> Unit, openStats: () 
                     private = list.privacyLevel != null && list.privacyLevel != "public",
                 ) { openList(list.id) }
             }
-            if (canon.isNotEmpty()) {
-                item { SectionTitle("Film Canon", Modifier.padding(top = 8.dp)) }
-                items(canon, key = { "canon-${it.slug}" }) { c -> CanonCard(c) { openCanon(c.slug) } }
+            listOf("Film Canon" to canon.filter { it.kind != "tv" }, "TV Canon" to canon.filter { it.kind == "tv" }).forEach { (title, lists) ->
+                if (lists.isNotEmpty()) {
+                    item(key = "canon-title-$title") { SectionTitle(title, Modifier.padding(top = 8.dp)) }
+                    items(lists, key = { "canon-${it.slug}" }) { c -> CanonCard(c) { openCanon(c.slug) } }
+                }
             }
             item {
                 OutlinedButton(onClick = app.signOut, modifier = Modifier.padding(16.dp)) { Text("Sign out", color = Watchd.Muted) }
@@ -771,15 +773,15 @@ private fun CanonCard(c: CanonSummary, onClick: () -> Unit) {
             Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)).background(Watchd.SurfaceHigh)) {
                 Box(Modifier.fillMaxWidth(if (c.total > 0) c.seen.toFloat() / c.total else 0f).fillMaxHeight().background(Watchd.Red))
             }
-            Text("%,d of %,d seen · %d%%".format(c.seen, c.total, if (c.total > 0) c.seen * 100 / c.total else 0), color = Watchd.Muted, fontSize = 12.sp)
+            Text("%,d of %,d %s · %d%%".format(c.seen, c.total, if (c.kind == "tv") "watched" else "seen", if (c.total > 0) c.seen * 100 / c.total else 0), color = Watchd.Muted, fontSize = 12.sp)
         }
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Watchd.Faint)
     }
 }
 
-/** One canon list: its films in order, the ones you've seen marked, filterable. */
+/** One canon list: its films or series in order, the ones you've seen marked, filterable. */
 @Composable
-fun CanonScreen(slug: String, onBack: () -> Unit, openMovie: (Int) -> Unit) {
+fun CanonScreen(slug: String, onBack: () -> Unit, openMovie: (Int) -> Unit, openShow: (Int) -> Unit = {}) {
     val (state, reload) = rememberLoad(slug, saved("canon-$slug")) { canonList(slug) }
     var show by rememberSaveable { mutableStateOf("All") }
     LoadContent(state, reload) { list ->
@@ -788,10 +790,14 @@ fun CanonScreen(slug: String, onBack: () -> Unit, openMovie: (Int) -> Unit) {
             "Seen" -> list.items.filter { it.watched }
             else -> list.items
         }
+        val tv = list.kind == "tv"
         PosterGrid(
-            list.name, "%,d of %,d seen · %d%%".format(list.seen, list.total, if (list.total > 0) list.seen * 100 / list.total else 0), onBack,
-            films.map { GridItem(it.tmdbId, "movie", it.title, it.posterPath, it.year?.toString(), seen = it.watched, rank = it.rank.takeIf { list.ranked }) },
-            openShow = {}, openMovie = openMovie,
+            list.name, "%,d of %,d %s · %d%%".format(list.seen, list.total, if (tv) "watched" else "seen", if (list.total > 0) list.seen * 100 / list.total else 0), onBack,
+            films.map {
+                val sub = if (it.wins.isNotEmpty()) "Won ${it.wins.joinToString(", ")}" else it.year?.toString()
+                GridItem(it.tmdbId, if (tv) "show" else "movie", it.title, it.posterPath, sub, seen = it.watched, rank = it.rank.takeIf { list.ranked })
+            },
+            openShow = openShow, openMovie = openMovie,
         ) {
             val chipColors = FilterChipDefaults.filterChipColors(
                 selectedContainerColor = Watchd.Red, selectedLabelColor = Color.White,

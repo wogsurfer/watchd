@@ -191,6 +191,7 @@ private data class ShowPage(val show: Show)
 fun ShowScreen(
     tmdbId: Int, onBack: () -> Unit, openSeason: (Int, Int) -> Unit, openPerson: (Int) -> Unit, openDisc: (Int) -> Unit,
     openEpisode: (Int, Int, Int) -> Unit = { _, _, _ -> },
+    openCanon: (String) -> Unit = {},
 ) {
     val (state, reload) = rememberLoad(tmdbId, saved<ShowPage>("show-$tmdbId")) {
         ShowPage(show(tmdbId))
@@ -203,6 +204,7 @@ fun ShowScreen(
     val awards = rememberAwards(tvdbId ?: 0) { tvdbId?.let { showAwards(it, tmdbId).awards } ?: emptyList() }
     // Loaded on its own so the page shows first.
     val strip by produceState<EpisodeStrip?>(null, tmdbId) { value = runCatching { app.api.episodeStrip(tmdbId) }.getOrNull() }
+    val canon by produceState<List<CanonBadge>>(emptyList(), tmdbId) { value = runCatching { app.api.canonShow(tmdbId) }.getOrDefault(emptyList()) }
     LoadContent(state, reload) { page ->
         val show = page.show
         // Seasons ticked or unticked here, ahead of the next reload.
@@ -223,6 +225,7 @@ fun ShowScreen(
                 )
             }
             item { RatingsPill(show.tmdbRating, show.imdbRating, rate.value, Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp), onRate = rate.open) }
+            if (canon.isNotEmpty()) item { CanonBadges(canon, openCanon) }
             item {
                 val all = show.watchPct == 100
                 ActionStack(
