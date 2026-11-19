@@ -1333,7 +1333,13 @@ const bottomNavItem = (active: boolean) =>
               watch_source: watchSource || null,
             });
           } else {
-            await apiFetch('/history', 'POST', watchBody);
+            const logged = await apiFetch('/history', 'POST', watchBody);
+            // A double episode: the others in its file were marked too.
+            for (const n of (logged?.also_marked ?? []) as number[]) {
+              document.querySelectorAll<HTMLElement>(
+                `[data-card][data-media-type="episode"][data-show-tmdb-id="${_watchHistoryShowTmdbId}"][data-season="${_watchHistorySeasonNumber}"][data-episode-number="${n}"] [data-action="watched"]`
+              ).forEach((b) => updateWatchedButtonUI(b, true));
+            }
           }
           await loadWatchHistoryEvents();
           (document.getElementById('watch-history-source') as HTMLSelectElement).value = '';
@@ -1432,8 +1438,6 @@ const bottomNavItem = (active: boolean) =>
           if (!markBtn.disabled) markBtn.textContent = markLabel();
         });
       });
-      // "Watch now" finds the next episode in TMDB's numbering only.
-      if (episodeOrder === 'tvdb') chips[0].classList.add('hidden');
 
       const close = () => { box.remove(); document.removeEventListener('keydown', onKey); };
       const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
@@ -1508,20 +1512,28 @@ const bottomNavItem = (active: boolean) =>
         markBtn.textContent = 'Saving…';
         try {
           if (when === 'watching') {
-            // Starts the season's first aired episode not yet watched.
-            const data = await apiFetch(`/shows/${seriesId}/season/${season}`);
-            const today = new Date().toISOString().slice(0, 10);
-            const next = (data.episodes || []).find((ep: any) => !ep.watched && ep.air_date && ep.air_date <= today);
+            // Starts the season's first aired episode not yet watched. A
+            // TVDB-numbered season is looked up in that numbering.
+            let next: any = null;
+            if (episodeOrder === 'tvdb') {
+              const found = await apiFetch(`/history/season-next?series_tmdb_id=${seriesId}&season_number=${season}`);
+              next = found?.episode ?? null;
+            } else {
+              const data = await apiFetch(`/shows/${seriesId}/season/${season}`);
+              const today = new Date().toISOString().slice(0, 10);
+              const ep = (data.episodes || []).find((e: any) => !e.watched && e.air_date && e.air_date <= today);
+              if (ep) next = { tmdb_id: ep.tmdb_id, season_number: Number(season), episode_number: ep.episode_number, display_episode: ep.episode_number, runtime: ep.runtime };
+            }
             if (!next) { markBtn.textContent = 'Nothing left to watch'; return; }
             const sessionBody: Record<string, unknown> = {
               tmdb_id: next.tmdb_id, media_type: 'episode', show_tmdb_id: Number(seriesId),
-              season_number: Number(season), episode_number: next.episode_number,
+              season_number: next.season_number, episode_number: next.episode_number,
             };
             if (next.runtime) sessionBody.runtime = next.runtime;
             if (markSource.value) sessionBody.watch_source = markSource.value;
             await apiFetch('/history/session/start', 'POST', sessionBody);
             window.dispatchEvent(new CustomEvent('watchd:session-changed'));
-            markBtn.textContent = `Watching episode ${next.episode_number}`;
+            markBtn.textContent = `Watching episode ${next.display_episode}`;
             window.setTimeout(close, 700);
             return;
           }

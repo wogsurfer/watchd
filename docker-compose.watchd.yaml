@@ -93,6 +93,7 @@ services:
     environment:
       TZ: Europe/Malta
       NTFY_URL: ${NTFY_URL:-}
+      HEARTBEAT_URL: ${HEARTBEAT_URL:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

@@ -624,3 +624,38 @@ async def season_discs(db: AsyncSession, user_id: int, series_tmdb_id: int) -> d
         for n in season_numbers(title, last):
             owned.setdefault(n, disc_id)
     return owned
+
+
+# ── Which season a TV disc holds ───────────────────────────────────────────
+
+_NUMBER_WORDS = {w: i for i, w in enumerate(
+    "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen "
+    "sixteen seventeen eighteen nineteen twenty".split())}
+_ORDINALS = {w: i + 1 for i, w in enumerate(
+    "first second third fourth fifth sixth seventh eighth ninth tenth eleventh twelfth thirteenth "
+    "fourteenth fifteenth sixteenth seventeenth eighteenth nineteenth twentieth".split())}
+
+
+def disc_season(title: str | None, seasons: list[int]) -> int | None:
+    """The season a TV disc's title names ("Season Two", "Series 3", "The
+    Complete Fifth Season", "The Final Season" = the last one), given the
+    show's season numbers (specials left out). A show with one season is
+    that season; a set of several ("Seasons 1-3", "Complete Series") is None."""
+    t = (title or "").lower()
+    if re.search(r"\bseasons\b|\bseries\s+\w+\s*(?:&|and|-)", t):
+        return None
+    words = "|".join(_NUMBER_WORDS)
+    m = re.search(rf"\b(?:season|series)\s+(\d+|{words})\b", t)
+    if m:
+        v = m.group(1)
+        n = int(v) if v.isdigit() else _NUMBER_WORDS[v]
+        return n if n in seasons else None
+    m = re.search(rf"\b({'|'.join(_ORDINALS)})\s+(?:season|series)\b", t)
+    if m:
+        n = _ORDINALS[m.group(1)]
+        return n if n in seasons else None
+    if re.search(r"\bfinal\s+(?:season|series)\b", t) and seasons:
+        return max(seasons)
+    if len(seasons) == 1 and not re.search(r"\b(?:season|series)\b", t):
+        return seasons[0]
+    return None

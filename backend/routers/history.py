@@ -1516,6 +1516,31 @@ async def mark_as_watched(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Log a play. An episode that shares its file with others in Emby (a
+    double episode) logs the same play on those too, as a play from Emby does."""
+    result = await _mark_play(event_in, db, current_user)
+    if event_in.media_type == MediaType.episode and event_in.completed and None not in (
+        event_in.series_tmdb_id, event_in.season_number, event_in.episode_number,
+    ):
+        from core.episode_files import file_mates
+
+        also = []
+        for n in await file_mates(event_in.series_tmdb_id, event_in.season_number, event_in.episode_number):
+            try:
+                await _mark_play(event_in.model_copy(update={"episode_number": n, "tmdb_id": 0}), db, current_user)
+                also.append(n)
+            except HTTPException as e:
+                print(f"history: couldn't also mark episode {n}: {e.detail}")
+        if also:
+            result["also_marked"] = also
+    return result
+
+
+async def _mark_play(
+    event_in: schemas.WatchEventCreate,
+    db: AsyncSession,
+    current_user: User,
+) -> dict:
     # 1. Check if Media exists locally
     media = None
     show = None
@@ -2010,6 +2035,52 @@ async def _season_episode_ids(
         media_filters.append(Media.season_number == season_number)
     episodes_q = await db.execute(select(Media.id).where(*media_filters))
     return [row[0] for row in episodes_q.all()]
+
+
+@router.get("/season-next")
+async def season_next_episode(
+    series_tmdb_id: int = Query(...),
+    season_number: int = Query(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """The first aired episode of a TVDB-numbered season not yet watched, for
+    the season box's Watch now: its TMDB ids and numbers, so a session can
+    start on it. {"episode": None} when there's nothing left."""
+    mappings = (await db.execute(
+        select(EpisodeOrderMapping)
+        .where(EpisodeOrderMapping.series_tmdb_id == series_tmdb_id,
+               EpisodeOrderMapping.tvdb_season_number == season_number)
+        .order_by(EpisodeOrderMapping.tvdb_episode_number)
+    )).scalars().all()
+    show = (await db.execute(select(Show).where(Show.tmdb_id == series_tmdb_id))).scalar_one_or_none()
+    if not mappings or not show:
+        return {"episode": None}
+    rows = (await db.execute(
+        select(Media).where(Media.show_id == show.id, Media.media_type == MediaType.episode)
+    )).scalars().all()
+    by_position = {(m.season_number, m.episode_number): m for m in rows}
+    watched = set((await db.execute(
+        select(WatchEvent.media_id).where(
+            WatchEvent.user_id == current_user.id, WatchEvent.completed.is_(True),
+            WatchEvent.media_id.in_([m.id for m in rows] or [0]),
+        )
+    )).scalars().all())
+    today = date.today().isoformat()
+    for mapping in mappings:
+        media = by_position.get((mapping.tmdb_season_number, mapping.tmdb_episode_number))
+        if media and media.id in watched:
+            continue
+        if not media or not media.release_date or media.release_date[:10] > today:
+            continue  # not aired, or not known to have
+        return {"episode": {
+            "tmdb_id": mapping.tmdb_episode_id,
+            "season_number": mapping.tmdb_season_number,
+            "episode_number": mapping.tmdb_episode_number,
+            "display_episode": mapping.tvdb_episode_number,
+            "runtime": media.runtime,
+        }}
+    return {"episode": None}
 
 
 @router.get("/season-sources")

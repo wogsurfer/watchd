@@ -16,7 +16,7 @@ from sqlalchemy.orm import selectinload
 
 from core import tmdb
 from core.physical import (
-    PICK_LISTS, cover_path, fetch_cover, fill_from_tmdb, franchise_sort_keys, link_media, set_franchise, pick_values, rebuild_collection_mirror,
+    PICK_LISTS, cover_path, disc_season, fetch_cover, fill_from_tmdb, franchise_sort_keys, link_media, set_franchise, pick_values, rebuild_collection_mirror,
     refresh_imdb_ratings, replace_pick_value, save_cover,
 )
 from db import get_db
@@ -53,8 +53,29 @@ def _director(specs: dict) -> str | None:
     return _crew(specs, "Director")
 
 
+class Plays(dict):
+    """Plays per movie TMDB id, and for TV discs how much of each season is
+    watched: tv[(show TMDB id, season)] = episodes watched, and
+    seasons[show TMDB id] = {season: episode count} from TMDB."""
+    tv: dict[tuple[int, int], int]
+    seasons: dict[int, dict[int, int]]
+
+
+def _tv_seen(item: PhysicalItem, plays: dict) -> tuple[int, int] | None:
+    """(episodes watched, episodes in it) for a disc holding one season of a
+    show you've watched some of, else None."""
+    seasons = getattr(plays, "seasons", {}).get(item.tmdb_id) if item.tmdb_id else None
+    if not seasons or item.is_set:
+        return None
+    season = disc_season(item.title, sorted(seasons))
+    if season is None or not seasons.get(season):
+        return None
+    return min(plays.tv.get((item.tmdb_id, season), 0), seasons[season]), seasons[season]
+
+
 async def _watched_tmdb_ids(db: AsyncSession, user_id: int) -> dict[int, int]:
-    """Plays per movie TMDB id, from the user's watch history."""
+    """Plays per movie TMDB id, from the user's watch history (a Plays,
+    with TV seasons' progress too)."""
     rows = await db.execute(
         select(Media.tmdb_id, func.count(WatchEvent.id))
         .join(WatchEvent, WatchEvent.media_id == Media.id)
@@ -66,7 +87,31 @@ async def _watched_tmdb_ids(db: AsyncSession, user_id: int) -> dict[int, int]:
         )
         .group_by(Media.tmdb_id)
     )
-    return dict(rows.all())
+    plays = Plays(rows.all())
+    tv_rows = (await db.execute(
+        select(Show.tmdb_id, Media.season_number, func.count(func.distinct(Media.episode_number)))
+        .join(Media, Media.show_id == Show.id)
+        .join(WatchEvent, WatchEvent.media_id == Media.id)
+        .where(
+            WatchEvent.user_id == user_id,
+            WatchEvent.completed.is_(True),
+            Media.media_type == MediaType.episode,
+            Media.season_number > 0,
+            Show.tmdb_id.is_not(None),
+        )
+        .group_by(Show.tmdb_id, Media.season_number)
+    )).all()
+    plays.tv = {(sid, season): n for sid, season, n in tv_rows}
+    plays.seasons = {}
+    shows = {sid for sid, _ in plays.tv}
+    if shows:
+        for sid, data in (await db.execute(select(Show.tmdb_id, Show.tmdb_data).where(Show.tmdb_id.in_(shows)))).all():
+            plays.seasons[sid] = {
+                s["season_number"]: s.get("episode_count") or 0
+                for s in (data or {}).get("seasons") or []
+                if isinstance(s.get("season_number"), int) and s["season_number"] > 0
+            }
+    return plays
 
 
 def _poster_thumb(poster: str | None) -> str | None:
@@ -124,6 +169,10 @@ def _summary(item: PhysicalItem, plays: dict[int, int], poster: str | None = Non
     # Plays are counted per film TMDB id; a series id is a different title.
     film_id = item.tmdb_id if specs.get("tmdb_kind", "movie") == "movie" else None
     watched = bool(film_id and plays.get(film_id))
+    # A season disc counts as seen once every episode of it is watched.
+    tv = None if film_id else _tv_seen(item, plays)
+    if tv and tv[0] >= tv[1]:
+        watched = True
     return {
         "id": item.id,
         "status": item.status,
@@ -158,6 +207,8 @@ def _summary(item: PhysicalItem, plays: dict[int, int], poster: str | None = Non
         # Watched in Watchd, or marked seen in Collectorz.
         "seen": watched or item.seen_it,
         "plays": plays.get(film_id, 0) if film_id else 0,
+        "episodes_seen": tv[0] if tv else None,
+        "episodes_total": tv[1] if tv else None,
         "genres": specs.get("genres", []),
         "regions": specs.get("regions", []),
         "audience_rating": specs.get("audience_rating"),

@@ -720,6 +720,9 @@ data class DiscDetail(
     val myRating: Double? = null,
     val seen: Boolean = false,
     val plays: Int = 0,
+    /** A season disc: episodes of that season watched, and in it. */
+    val episodesSeen: Int? = null,
+    val episodesTotal: Int? = null,
     val genres: List<String> = emptyList(),
     val regions: List<String> = emptyList(),
     val audienceRating: String? = null,

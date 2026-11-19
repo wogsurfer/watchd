@@ -115,6 +115,7 @@ fun DiscScreen(discId: Int, onBack: () -> Unit, openDisc: (Int) -> Unit, openSho
                     Text(
                         "  " + when {
                             d.isSet -> "Seen $seenOf of ${d.contents.size}"
+                            d.episodesTotal != null -> "Seen ${d.episodesSeen ?: 0} of ${d.episodesTotal} episodes"
                             d.seen -> listOfNotNull("Seen", d.plays.takeIf { it > 1 }?.let { "$it plays" }, dateOf(d.lastWatched)?.let { "last on $it" }).joinToString(" · ")
                             else -> "Not seen yet"
                         },

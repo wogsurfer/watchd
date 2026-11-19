@@ -11,8 +11,9 @@
 #     and backups) under SYSTEM_MIN_GB; once a day until there's room again
 #
 # Runs in the "watchdog" service of docker-compose.watchd.yaml. It can't warn
-# you if Docker itself or the PC is down: for that, point an outside uptime
-# monitor at the site.
+# you if Docker itself or the PC is down, so while the site is up it also
+# pings HEARTBEAT_URL (a healthchecks.io check, in .env) every round: when the
+# pings stop, healthchecks.io sends the alert instead.
 set -u
 
 URL="${WATCH_URL:-http://app:7330/api/proxy/auth/has-users}"
@@ -88,6 +89,11 @@ while true; do
     if [ "$age" -gt $((26 * 3600)) ] && [ "$backup_warned" != "$today" ]; then
         backup_warned=$today
         notify "Watchd backup missed" "The last successful backup was $(cat "$LAST_BACKUP" 2>/dev/null || echo never). See: docker logs scrob-backup-1" high floppy_disk
+    fi
+
+    # Still here and the site is answering: tell the outside check.
+    if [ -n "${HEARTBEAT_URL:-}" ] && [ "$down" = 0 ]; then
+        curl -fsS -m 15 -o /dev/null "$HEARTBEAT_URL" || echo "watchdog: heartbeat didn't go through"
     fi
 
     for svc in $SERVICES; do

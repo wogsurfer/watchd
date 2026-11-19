@@ -1032,6 +1032,9 @@ export interface PhysicalSummary {
   my_rating?: number;
   seen?: boolean;
   plays?: number;
+  /** A season disc: episodes of that season watched, and in it. */
+  episodes_seen?: number | null;
+  episodes_total?: number | null;
   genres?: string[];
   regions?: string[];
   audience_rating?: string;
