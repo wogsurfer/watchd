@@ -771,6 +771,26 @@ async def calendar_upcoming(
         },
         tmdb_api_key,
     )
+    # TMDB often lists a season only up to its break, so the break is also
+    # looked for in the schedule's own dates (a mid-season finale TMDB
+    # can't show yet).
+    for show, scheduled in schedule_results:
+        if not show.tmdb_id:
+            continue
+        seasons: dict[int, dict[int, dict]] = {}
+        for ep in scheduled:
+            s_no, e_no = ep.get("season"), ep.get("episode")
+            if s_no is None or e_no is None or not ep.get("air_date"):
+                continue
+            seasons.setdefault(s_no, {})[e_no] = {
+                "episode_number": e_no,
+                "air_date": str(ep["air_date"])[:10],
+                "episode_type": episode_types.get((show.tmdb_id, s_no, e_no)),
+            }
+        for s_no, eps in seasons.items():
+            for e_no, kind in season_types(list(eps.values())).items():
+                if kind == "mid_season":
+                    episode_types[(show.tmdb_id, s_no, e_no)] = kind
 
     # -----------------------------------------------------
     # 5. Build calendar episodes.

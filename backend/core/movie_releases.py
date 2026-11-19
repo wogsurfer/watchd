@@ -1,7 +1,7 @@
 """Film release dates for the calendar: cinema, digital, streaming and disc,
 picked from TMDB's per-country release dates."""
 
-from datetime import date
+from datetime import date, timedelta
 
 # TMDB release types.
 _LIMITED, _THEATRICAL, _DIGITAL, _PHYSICAL = 2, 3, 4, 5
@@ -12,6 +12,11 @@ _DIGITAL_NOTES = ("rental", "digital", "vod", "purchase", "itunes")
 
 COUNTRY_NAMES = {"GB": "UK"}
 
+# A cinema date this long after the film first opened in that country is a
+# return to cinemas (a re-release or a new cut), even when TMDB's note
+# doesn't say so. By country, as films often open months apart abroad.
+BACK_IN_CINEMAS_AFTER = timedelta(days=42)
+
 
 def release_countries(user_country: str | None) -> list[str]:
     """Countries to take dates from, best first: the user's own, then the UK
@@ -20,12 +25,31 @@ def release_countries(user_country: str | None) -> list[str]:
     return list(dict.fromkeys(c.upper() for c in countries))
 
 
-def _kind_and_label(release: dict) -> tuple[str | None, str | None]:
+def _first_in_cinemas(releases: list) -> date | None:
+    """The earliest limited or wide cinema release among a country's releases."""
+    days = []
+    for release in releases or []:
+        if release.get("type") in (_LIMITED, _THEATRICAL):
+            try:
+                days.append(date.fromisoformat((release.get("release_date") or "")[:10]))
+            except ValueError:
+                pass
+    return min(days, default=None)
+
+
+def _kind_and_label(release: dict, first_cinema: date | None = None) -> tuple[str | None, str | None]:
     kind = release.get("type")
     note = (release.get("note") or "").strip()
     low = note.lower()
     if kind in (_LIMITED, _THEATRICAL):
-        return "cinema", "Back in cinemas" if "re-release" in low or "rerelease" in low else "In cinemas"
+        back = "re-release" in low or "rerelease" in low
+        if not back and first_cinema:
+            try:
+                day = date.fromisoformat((release.get("release_date") or "")[:10])
+                back = day - first_cinema > BACK_IN_CINEMAS_AFTER
+            except ValueError:
+                pass
+        return "cinema", "Back in cinemas" if back else "In cinemas"
     if kind == _DIGITAL:
         if not note or any(word in low for word in _DIGITAL_NOTES):
             return "digital", "Digital"
@@ -53,8 +77,9 @@ def upcoming_releases(results: list, start: date, end: date, countries: list[str
     picked: dict[tuple, dict] = {}
     for country in countries:
         best: dict[tuple, dict] = {}
+        first_cinema = _first_in_cinemas(by_country.get(country, []))
         for release in by_country.get(country, []):
-            kind, label = _kind_and_label(release)
+            kind, label = _kind_and_label(release, first_cinema)
             if not kind:
                 continue
             try:

@@ -50,3 +50,29 @@ class MovieReleaseTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BackInCinemasTests(unittest.TestCase):
+    def test_a_cinema_date_months_after_opening_is_back_in_cinemas(self):
+        from datetime import date
+        from core.movie_releases import upcoming_releases
+        results = [{"iso_3166_1": "US", "release_dates": [
+            {"release_date": "2026-07-31T00:00:00.000Z", "type": 3, "note": ""},
+            {"release_date": "2026-08-06T00:00:00.000Z", "type": 2, "note": "IMAX"},
+            {"release_date": "2026-12-04T00:00:00.000Z", "type": 2, "note": "Extended cut"},
+        ]}]
+        picked = upcoming_releases(results, date(2026, 8, 1), date(2026, 12, 31), ["US"])
+        self.assertEqual([(r["date"].isoformat(), r["label"]) for r in picked],
+                         [("2026-08-06", "In cinemas")])
+        later = upcoming_releases(results, date(2026, 11, 1), date(2026, 12, 31), ["US"])
+        self.assertEqual([r["label"] for r in later], ["Back in cinemas"])
+
+    def test_opening_months_later_in_another_country_is_not(self):
+        from datetime import date
+        from core.movie_releases import upcoming_releases
+        results = [
+            {"iso_3166_1": "US", "release_dates": [{"release_date": "2026-01-10T00:00:00.000Z", "type": 3, "note": ""}]},
+            {"iso_3166_1": "GB", "release_dates": [{"release_date": "2026-05-01T00:00:00.000Z", "type": 3, "note": ""}]},
+        ]
+        picked = upcoming_releases(results, date(2026, 4, 1), date(2026, 6, 1), ["GB", "US"])
+        self.assertEqual([r["label"] for r in picked], ["In cinemas"])
