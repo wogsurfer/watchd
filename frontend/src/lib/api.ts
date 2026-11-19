@@ -267,6 +267,8 @@ export interface WatchEvent {
   watch_source: string | null;
   completed: boolean;
   progress_percent: number | null;
+  /** "1,000th episode" when this play is a round-number milestone. */
+  milestone?: string | null;
 }
 
 export interface SyncJob {

@@ -388,6 +388,83 @@ async def _get_show_history(
         "results": results,
     }
 
+# Milestones: your 1,000th and 5,000th episode play, then every 5,000th
+# (rewatches count); the 100th and 500th different film you watched, then
+# every 500th, on its first play; and your film plays (rewatches count) at
+# the same 100, 500, every 500.
+EPISODE_STEP = 5000
+FILM_STEP = 500
+
+
+def milestone_label(kind: str, number: int) -> str | None:
+    """kind is "episode", "film" (different films) or "play" (film plays)."""
+    if number <= 0:
+        return None
+    if kind == "episode" and (number == 1000 or number % EPISODE_STEP == 0):
+        return f"{number:,}{_ordinal_suffix(number)} episode"
+    if kind in ("film", "play") and (number == 100 or number % FILM_STEP == 0):
+        return f"{number:,}{_ordinal_suffix(number)} {'film' if kind == 'film' else 'film play'}"
+    return None
+
+
+def _ordinal_suffix(n: int) -> str:
+    if 10 <= n % 100 <= 20:
+        return "th"
+    return {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+
+
+async def _milestones(db: AsyncSession, user_id: int, event_ids: list[int]) -> dict[int, str]:
+    """{event id: "1,000th episode"} for the given plays that are milestones.
+    Plays without a date count as the earliest."""
+    if not event_ids:
+        return {}
+    in_order = (WatchEvent.watched_at.asc().nulls_first(), WatchEvent.id.asc())
+    mine = (WatchEvent.user_id == user_id, WatchEvent.completed.is_(True))
+    episodes = (
+        select(WatchEvent.id.label("id"), func.row_number().over(order_by=in_order).label("n"))
+        .join(Media, Media.id == WatchEvent.media_id)
+        .where(*mine, Media.media_type == MediaType.episode)
+        .subquery()
+    )
+    # Each film once, at its first play: a film is its TMDB id, or its own
+    # row for one TMDB doesn't have.
+    film = func.coalesce(Media.tmdb_id, -Media.id)
+    plays = (
+        select(
+            WatchEvent.id.label("id"),
+            WatchEvent.watched_at.label("watched_at"),
+            func.row_number().over(partition_by=film, order_by=in_order).label("k"),
+        )
+        .join(Media, Media.id == WatchEvent.media_id)
+        .where(*mine, Media.media_type == MediaType.movie)
+        .subquery()
+    )
+    films = (
+        select(
+            plays.c.id.label("id"),
+            func.row_number().over(order_by=(plays.c.watched_at.asc().nulls_first(), plays.c.id.asc())).label("n"),
+        )
+        .where(plays.c.k == 1)
+        .subquery()
+    )
+    film_plays = (
+        select(
+            plays.c.id.label("id"),
+            func.row_number().over(order_by=(plays.c.watched_at.asc().nulls_first(), plays.c.id.asc())).label("n"),
+        )
+        .subquery()
+    )
+    labels: dict[int, list[str]] = {}
+    for kind, numbered in (("episode", episodes), ("film", films), ("play", film_plays)):
+        rows = (await db.execute(select(numbered.c.id, numbered.c.n).where(numbered.c.id.in_(event_ids)))).all()
+        for event_id, number in rows:
+            label = milestone_label(kind, number)
+            if label:
+                labels.setdefault(event_id, []).append(label)
+    # One play can be both, e.g. your 500th film and 500th film play.
+    return {event_id: " · ".join(ls) for event_id, ls in labels.items()}
+
+
 @router.get("")
 async def get_history(
     page: int = Query(1, ge=1),
@@ -432,6 +509,10 @@ async def get_history(
     
     events = [format_event(e, m) for e, m in rows]
     if events:
+        milestones = await _milestones(db, current_user.id, [e["id"] for e in events])
+        for event in events:
+            if event["id"] in milestones:
+                event["milestone"] = milestones[event["id"]]
         await enrich_with_state(db, current_user.id, [e["media"] for e in events])
         lang = await get_user_metadata_language(db, current_user.id)
         if lang:

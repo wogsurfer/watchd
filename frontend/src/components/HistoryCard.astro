@@ -54,6 +54,9 @@ const timeString = watchedAt
     })
   : "";
 
+// "1,000th episode": a round-number play (see the history API).
+const milestone = event.milestone ?? null;
+
 const year = media.release_date
   ? media.release_date.slice(0, 4)
   : null;
@@ -72,6 +75,12 @@ const episodeNumber =
   data-event-id={event.id}
 >
   <div class="poster-wrap">
+    {milestone && (
+      <span class="milestone" title={`Your ${milestone}`}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17.3 5.8 20.9l1.6-7L2 9.2l7.1-.6z"/></svg>
+        {milestone}
+      </span>
+    )}
     {posterPath ? (
       <img
         src={posterPath}
@@ -144,12 +153,39 @@ const episodeNumber =
 }
 
 .poster-wrap {
+  position: relative;
   width: 100%;
   aspect-ratio: 2 / 3;
   overflow: hidden;
   border-radius: 14px;
   background: #0b0b0b;
   border: 1px solid #27272a;
+}
+
+.milestone {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  width: fit-content;
+  max-width: calc(100% - 16px);
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #fde047, #f59e0b);
+  color: #422006;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .02em;
+  line-height: 1.25;
+  box-shadow: 0 2px 10px rgb(0 0 0 / .55);
+}
+
+.milestone svg {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .poster {
