@@ -86,6 +86,12 @@ import app.watchd.ui.theme.Watchd
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -107,21 +113,75 @@ private fun PageTitle(title: String, onBack: (() -> Unit)? = null) {
 
 // ------------------------------------------------------------------ calendar
 
-/** Five weeks from this Monday: episodes from your shows and release dates of films you follow. */
+/** The Include chips, as on the site: episodes, and each kind of film release. */
+private val CALENDAR_KINDS = listOf("tv" to "TV shows", "cinema" to "In cinemas", "digital" to "Digital", "streaming" to "Streaming", "disc" to "Disc")
+private val monthName = DateTimeFormatter.ofPattern("MMMM yyyy")
+
+/**
+ * Everything announced, from this Monday on: episodes from your shows and
+ * release dates of films you follow. Chips hide a kind (kept between visits),
+ * and the calendar button jumps to a month.
+ */
 @Composable
 fun CalendarScreen(openShow: (Int) -> Unit, openMovie: (Int) -> Unit) {
-    val (state, reload) = rememberLoad(Unit, saved("calendar")) { calendar(35) }
+    val (state, reload) = rememberLoad(Unit, saved("calendar")) { calendar(3660) }
+    val prefs = LocalContext.current.getSharedPreferences("watchd", android.content.Context.MODE_PRIVATE)
+    var hidden by remember { mutableStateOf(prefs.getStringSet("calendar_hidden_kinds", emptySet()).orEmpty().toSet()) }
+    val chipColors = FilterChipDefaults.filterChipColors(
+        selectedContainerColor = Watchd.Red, selectedLabelColor = Color.White,
+        containerColor = Watchd.Surface, labelColor = Watchd.Muted,
+    )
+    val list = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    var monthsOpen by remember { mutableStateOf(false) }
     LoadContent(state, reload) { data ->
         val today = data.today?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: LocalDate.now()
         val thisMonday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-        val episodes = data.episodes.filter { !it.airDate.isNullOrBlank() }.groupBy { it.airDate!! }
-        val movies = data.movies.filter { !it.date.isNullOrBlank() }.groupBy { it.date!! }
+        val kinds = CALENDAR_KINDS.filter { (k, _) -> if (k == "tv") data.episodes.isNotEmpty() else data.movies.any { it.kind == k } }
+        val episodes = if ("tv" in hidden) emptyMap() else data.episodes.filter { !it.airDate.isNullOrBlank() }.groupBy { it.airDate!! }
+        val movies = data.movies.filter { !it.date.isNullOrBlank() && it.kind !in hidden }.groupBy { it.date!! }
         val days = (episodes.keys + movies.keys).sorted()
-        val byWeek = days.groupBy { runCatching { LocalDate.parse(it).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)) }.getOrDefault(thisMonday) }
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-            item { PageTitle("Calendar") }
+        val byWeek = days.groupBy { runCatching { LocalDate.parse(it).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)) }.getOrDefault(thisMonday) }.toSortedMap()
+        // Where each month starts in the list: title and chips come first, then
+        // per week a header, and per day a header and its rows.
+        val monthAt = linkedMapOf<java.time.YearMonth, Int>()
+        var index = 2
+        byWeek.forEach { (_, weekDays) ->
+            index++
+            weekDays.forEach { day ->
+                runCatching { java.time.YearMonth.from(LocalDate.parse(day)) }.getOrNull()?.let { monthAt.putIfAbsent(it, index) }
+                index += 1 + episodes[day].orEmpty().size + movies[day].orEmpty().size
+            }
+        }
+        LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 24.dp)) {
+            item(key = "title") {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Box(Modifier.weight(1f)) { PageTitle("Calendar") }
+                    if (monthAt.size > 1) Box(Modifier.padding(end = 8.dp)) {
+                        IconButton(onClick = { monthsOpen = true }) { Icon(Icons.Default.CalendarMonth, contentDescription = "Jump to a month", tint = Watchd.Muted) }
+                        DropdownMenu(monthsOpen, onDismissRequest = { monthsOpen = false }) {
+                            monthAt.forEach { (month, at) ->
+                                DropdownMenuItem(
+                                    text = { Text(month.atDay(1).format(monthName)) },
+                                    onClick = { monthsOpen = false; scope.launch { list.scrollToItem(at) } },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            item(key = "kinds") {
+                if (kinds.size > 1) LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 4.dp)) {
+                    items(kinds) { (k, label) ->
+                        FilterChip(k !in hidden, {
+                            hidden = if (k in hidden) hidden - k else hidden + k
+                            prefs.edit().putStringSet("calendar_hidden_kinds", hidden).apply()
+                        }, label = { Text(label) }, colors = chipColors, border = null)
+                    }
+                }
+            }
             if (days.isEmpty()) item { Text("Nothing scheduled.", color = Watchd.Muted, modifier = Modifier.padding(16.dp)) }
-            byWeek.toSortedMap().forEach { (monday, weekDays) ->
+            byWeek.forEach { (monday, weekDays) ->
                 item(key = "week-$monday") {
                     val label = when (monday) {
                         thisMonday -> "This week"

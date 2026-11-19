@@ -74,6 +74,8 @@ data class UpcomingMovie(
     val posterPath: String? = null,
     val date: String? = null,
     val label: String? = null,
+    /** "cinema", "digital", "streaming" or "disc", for the calendar's chips. */
+    val kind: String? = null,
 )
 
 @Serializable
