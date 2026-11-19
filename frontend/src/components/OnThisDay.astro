@@ -1,0 +1,93 @@
+---
+import { tmdbImageUrl } from "../lib/api";
+
+// What you watched on today's date 1, 5, 10 and 20 years ago, side by side
+// (two by two on a phone). A show watched several episodes of is one entry.
+interface Episode { season: number | null; episode: number | null; title: string | null }
+interface Entry {
+  kind: "show" | "movie";
+  title: string | null;
+  tmdb_id: number | null;
+  poster: string | null;
+  year?: string | null;
+  episodes?: Episode[];
+}
+interface Day { years: number; date: string; plays: number; entries: Entry[]; more: number }
+
+const { days = [] } = Astro.props as { days?: Day[] };
+
+const code = (e: Episode) => `${e.season ?? 0}x${String(e.episode ?? 0).padStart(2, "0")}`;
+const label = (years: number) => (years === 1 ? "1 year ago" : `${years} years ago`);
+const dateText = (iso: string) =>
+  new Date(`${iso}T12:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+const href = (e: Entry) => (e.tmdb_id ? (e.kind === "show" ? `/show/${e.tmdb_id}` : `/media/movie/${e.tmdb_id}`) : null);
+const detail = (e: Entry) => {
+  if (e.kind === "movie") return e.year ? `Film · ${e.year}` : "Film";
+  const eps = e.episodes ?? [];
+  if (eps.length === 1) return [code(eps[0]), eps[0].title].filter(Boolean).join(" · ");
+  return `${eps.length} episodes · ${code(eps[0])}–${code(eps[eps.length - 1])}`;
+};
+const anything = days.some((d) => d.plays > 0);
+---
+
+{days.length > 0 && (
+  <section class="otd mb-16">
+    <h2 class="section-headline">On This Day</h2>
+    <div class="otd-grid">
+      {days.map((d) => (
+        <div class="otd-col">
+          <div class="otd-head">
+            <span class="otd-ago">{label(d.years)}</span>
+            <span class="otd-date">{dateText(d.date)}</span>
+          </div>
+          {d.entries.length === 0 ? (
+            <p class="otd-none">{anything ? "Nothing watched" : "Nothing watched yet"}</p>
+          ) : (
+            <ul class="otd-list">
+              {d.entries.map((e) => {
+                const link = href(e);
+                const poster = tmdbImageUrl(e.poster, "w92");
+                const Tag = link ? "a" : "div";
+                return (
+                  <li>
+                    <Tag class="otd-item" href={link ?? undefined}>
+                      {poster ? <img src={poster} alt="" loading="lazy" class="otd-poster" /> : <span class="otd-poster otd-blank" />}
+                      <span class="otd-text">
+                        <span class="otd-title">{e.title}</span>
+                        <span class="otd-detail">{detail(e)}</span>
+                      </span>
+                    </Tag>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {d.more > 0 && <p class="otd-more">and {d.more} more</p>}
+        </div>
+      ))}
+    </div>
+  </section>
+)}
+
+<style>
+  .otd-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  @media (min-width: 900px) { .otd-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; } }
+  .otd-col { background: rgb(24 24 27 / .6); border: 1px solid #27272a; border-radius: 16px; padding: 14px; min-width: 0; }
+  .otd-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #27272a; }
+  .otd-ago { color: #f4f4f5; font-weight: 800; font-size: 17px; }
+  .otd-date { color: #71717a; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; }
+  .otd-list { display: flex; flex-direction: column; gap: 8px; }
+  .otd-item { display: flex; gap: 10px; align-items: center; border-radius: 10px; padding: 4px; margin: -4px; transition: background .15s; }
+  a.otd-item:hover { background: #27272a; }
+  .otd-poster { width: 38px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 5px; flex-shrink: 0; background: #27272a; }
+  .otd-blank { display: block; }
+  .otd-text { display: flex; flex-direction: column; min-width: 0; }
+  .otd-title { color: #e4e4e7; font-weight: 700; font-size: 13.5px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .otd-detail { color: #a1a1aa; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .otd-none { color: #52525b; font-size: 13px; }
+  .otd-more { color: #71717a; font-size: 12px; font-weight: 700; margin-top: 10px; }
+  :global(html.light) .otd-col { background: #fff; border-color: #e4e4e7; }
+  :global(html.light) .otd-head { border-color: #e4e4e7; }
+  :global(html.light) .otd-ago, :global(html.light) .otd-title { color: #18181b; }
+  :global(html.light) a.otd-item:hover { background: #f4f4f5; }
+</style>

@@ -563,3 +563,89 @@ async def holiday_theme(day: str | None = None):
         when = today()
     # The app picks up the earlier home (see core.home_time) from here too.
     return {"theme": theme_for(when), "earlier_home": EARLIER_HOME}
+
+
+# =========================================================
+# On this day
+# =========================================================
+
+ON_THIS_DAY_YEARS = (1, 5, 10, 20)
+ON_THIS_DAY_SHOWN = 8
+
+
+def years_ago(today, years: int):
+    """The same day [years] back; 29 February falls back to the 28th."""
+    try:
+        return today.replace(year=today.year - years)
+    except ValueError:
+        return today.replace(year=today.year - years, day=28)
+
+
+def on_this_day_entries(rows) -> list[dict]:
+    """A day's plays as entries, earliest first, with one entry per show
+    (its episodes listed) so a binge doesn't fill the column."""
+    entries: list[dict] = []
+    by_show: dict[int, dict] = {}
+    for watch, media, show in rows:
+        if media.media_type == MediaType.episode and show is not None:
+            entry = by_show.get(show.id)
+            if entry is None:
+                entry = by_show[show.id] = {
+                    "kind": "show",
+                    "title": show.title,
+                    "tmdb_id": show.tmdb_id,
+                    "poster": show.poster_path,
+                    "episodes": [],
+                }
+                entries.append(entry)
+            entry["episodes"].append({
+                "season": media.season_number,
+                "episode": media.episode_number,
+                "title": media.title,
+            })
+        elif media.media_type == MediaType.movie:
+            entries.append({
+                "kind": "movie",
+                "title": media.title,
+                "tmdb_id": media.tmdb_id,
+                "poster": media.poster_path,
+                "year": (media.release_date or "")[:4] or None,
+            })
+    return entries
+
+
+@router.get("/on-this-day")
+async def dashboard_on_this_day(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """What you watched on today's date 1, 5, 10 and 20 years ago, by the
+    day where you watched it (home time)."""
+    from core.home_time import HOME_TZ, HOME_TZ_NAME
+
+    today = datetime.now(HOME_TZ).date()
+    local_day = func.date(func.timezone(HOME_TZ_NAME, func.timezone("UTC", WatchEvent.watched_at)))
+    out = []
+    for years in ON_THIS_DAY_YEARS:
+        day = years_ago(today, years)
+        rows = (await db.execute(
+            select(WatchEvent, Media, Show)
+            .join(Media, WatchEvent.media_id == Media.id)
+            .outerjoin(Show, Media.show_id == Show.id)
+            .where(
+                WatchEvent.user_id == current_user.id,
+                WatchEvent.completed.is_(True),
+                WatchEvent.watched_at.isnot(None),
+                local_day == day,
+            )
+            .order_by(WatchEvent.watched_at)
+        )).all()
+        entries = on_this_day_entries(rows)
+        out.append({
+            "years": years,
+            "date": day.isoformat(),
+            "plays": len(rows),
+            "entries": entries[:ON_THIS_DAY_SHOWN],
+            "more": max(0, len(entries) - ON_THIS_DAY_SHOWN),
+        })
+    return {"days": out}

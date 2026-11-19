@@ -6,6 +6,7 @@ import DashboardHeader from "../components/DashboardHeader.astro";
 import UpcomingSchedule from "../components/UpcomingSchedule.astro";
 import Last30Days from "../components/Last30Days.astro";
 import GenreStrip from "../components/GenreStrip.astro";
+import OnThisDay from "../components/OnThisDay.astro";
 
 import {
   api,
@@ -39,6 +40,7 @@ let upcomingSchedule: any[] = [];
 let watchlist: WatchlistMovie[] = [];
 
 let last30 = null;
+let onThisDay: any[] = [];
 
 let dashboardStats = {
   tv: {
@@ -73,6 +75,8 @@ if (token) {
 
     api.dashboard.last30(token),
 
+    api.dashboard.onThisDay(token),
+
   ]);
 
   if (results[0].status === "fulfilled") {
@@ -97,6 +101,10 @@ if (token) {
 
   if (results[5].status === "fulfilled") {
     last30 = results[5].value;
+  }
+
+  if (results[6].status === "fulfilled") {
+    onThisDay = results[6].value?.days ?? [];
   }
 
 }
@@ -209,6 +217,8 @@ if (token) {
   <Last30Days data={last30} />
 
   <GenreStrip genres={last30?.genres ?? []} />
+
+  <OnThisDay days={onThisDay} />
 
 <script is:inline>
 

@@ -1454,6 +1454,9 @@ export const api = {
 
     last30: (token: string) =>
       get("/dashboard/last30", undefined, token),
+
+    onThisDay: (token: string) =>
+      get("/dashboard/on-this-day", undefined, token),
   },
 
   watchlist: {
