@@ -522,6 +522,8 @@ async def lifespan(app: FastAPI):
     episodes_task = asyncio.create_task(_episode_details_refresher())
     cast_task = asyncio.create_task(_cast_split_refresher())
     emby_posters_task = asyncio.create_task(_emby_poster_refresher())
+    from core.alerts import alerts_loop
+    alerts_task = asyncio.create_task(alerts_loop(async_session))
 
     yield
 
@@ -529,6 +531,7 @@ async def lifespan(app: FastAPI):
     episodes_task.cancel()
     cast_task.cancel()
     emby_posters_task.cancel()
+    alerts_task.cancel()
 
     scheduler_task.cancel()
     watchlist_task.cancel()

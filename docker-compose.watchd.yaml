@@ -93,5 +93,9 @@ services:
     environment:
       TZ: Europe/Malta
       NTFY_URL: ${NTFY_URL:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./backups:/backups:ro
+      # Only to read how full the library drive is.
+      - D:/Downloads:/host/library:ro

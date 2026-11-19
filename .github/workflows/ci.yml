@@ -56,3 +56,25 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  android:
+    name: App build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+
+      # Gradle and the Android plugin need JDK 17 or later.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # A debug build: it needs no signing key, and catches anything that
+      # would stop publish.ps1 building, such as a Dependabot Gradle update.
+      - name: Build
+        run: sh gradlew assembleDebug --no-daemon

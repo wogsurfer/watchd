@@ -111,3 +111,4 @@ backend/data/app/
 
 # Emby posters: originals kept to put back, and what was applied (services/emby/season_posters.py)
 backend/data/emby_posters/
+backend/data/alerts.json

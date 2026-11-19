@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -25,6 +26,10 @@ import app.watchd.data.DownloadedFilm
 import app.watchd.data.SessionStore
 import app.watchd.data.SignedOut
 import app.watchd.data.UpcomingEpisode
+import app.watchd.data.WatchTarget
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import java.time.Duration
 import java.time.LocalDate
@@ -133,7 +138,7 @@ class NewEpisodesWorker(context: Context, params: WorkerParameters) : CoroutineW
         }
         val tap = PendingIntent.getActivity(context, key.hashCode(), open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val code = "%02dx%02d".format(ep.season ?: 0, ep.episode ?: 0)
-        val notification = NotificationCompat.Builder(context, CHANNEL)
+        val builder = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
             .setColor(0xFFE50914.toInt())
             .setContentTitle("${ep.showTitle.orEmpty()} $code is out")
@@ -141,7 +146,19 @@ class NewEpisodesWorker(context: Context, params: WorkerParameters) : CoroutineW
             .setContentIntent(tap)
             .setAutoCancel(true)
             .setGroup(CHANNEL)
-            .build()
+        // "Mark watched" logs the play now, without opening the app.
+        if (ep.showTmdbId != null && ep.season != null && ep.episode != null) {
+            val mark = Intent(context, MarkWatchedReceiver::class.java).apply {
+                putExtra(MarkWatchedReceiver.SHOW, ep.showTmdbId)
+                putExtra(MarkWatchedReceiver.SEASON, ep.season)
+                putExtra(MarkWatchedReceiver.EPISODE, ep.episode)
+                putExtra(MarkWatchedReceiver.TITLE, "${ep.showTitle.orEmpty()} $code")
+                putExtra(MarkWatchedReceiver.ID, key.hashCode())
+            }
+            val markTap = PendingIntent.getBroadcast(context, key.hashCode(), mark, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            builder.addAction(0, "Mark watched", markTap)
+        }
+        val notification = builder.build()
         return runCatching { NotificationManagerCompat.from(context).notify(key.hashCode(), notification) }.isSuccess
     }
 
@@ -184,5 +201,47 @@ class NewEpisodesWorker(context: Context, params: WorkerParameters) : CoroutineW
                 OneTimeWorkRequestBuilder<NewEpisodesWorker>().setConstraints(online).build(),
             )
         }
+    }
+}
+
+
+/** The "Mark watched" button on a new-episode notification: logs the play
+ *  now, then swaps the notification for a short "Marked watched". */
+class MarkWatchedReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        val show = intent.getIntExtra(SHOW, 0).takeIf { it > 0 } ?: return
+        val season = intent.getIntExtra(SEASON, -1).takeIf { it >= 0 } ?: return
+        val episode = intent.getIntExtra(EPISODE, -1).takeIf { it >= 0 } ?: return
+        val title = intent.getStringExtra(TITLE).orEmpty()
+        val id = intent.getIntExtra(ID, 0)
+        val done = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            val ok = runCatching {
+                val session = SessionStore(context).session.first()
+                val token = session.token ?: error("not signed in")
+                // The episode is found by its show, season and number.
+                Api(session.server, token).logWatch(WatchTarget(0, "episode", title, show, season, episode), source = null)
+            }.onFailure { Log.w("MarkWatched", "couldn't mark $title", it) }.isSuccess
+            runCatching {
+                val note = NotificationCompat.Builder(context, "new_episodes")
+                    .setSmallIcon(R.drawable.ic_notification)
+                    .setColor(0xFFE50914.toInt())
+                    .setContentTitle(title)
+                    .setContentText(if (ok) "Marked watched" else "Couldn't mark it watched. Try in the app.")
+                    .setAutoCancel(true)
+                    .apply { if (ok) setTimeoutAfter(4000) }
+                    .build()
+                NotificationManagerCompat.from(context).notify(id, note)
+            }
+            done.finish()
+        }
+    }
+
+    companion object {
+        const val SHOW = "show"
+        const val SEASON = "season"
+        const val EPISODE = "episode"
+        const val TITLE = "title"
+        const val ID = "id"
     }
 }
