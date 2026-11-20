@@ -11,8 +11,8 @@
 
 .wd-poster-card .wd-panel{
     position:relative;
-    background:#18181b;
-    border:1px solid #27272a;
+    background:var(--surface-hover);
+    border:1px solid var(--line-mid);
     border-radius:16px 16px 0 0;
     overflow:hidden;
 }
@@ -51,7 +51,7 @@
     justify-content:center;
     padding:0 20px;
     text-align:center;
-    background:#18181b;
+    background:var(--surface-hover);
     color:#52525b;
     font-size:11px;
     font-weight:800;
@@ -66,7 +66,7 @@
     height:48px;
     padding:0 10px 0 4px;
     box-sizing:border-box;
-    border-top:1px solid #27272a;
+    border-top:1px solid var(--line-mid);
 }
 
 .wd-poster-card .wd-actions{
@@ -170,7 +170,7 @@
 .wd-poster-card .wd-progress{
     position:relative;
     height:3px;
-    background:#27272a;
+    background:var(--surface-strong);
     transform-origin:bottom;
     transition:transform .15s ease;
     outline:none;
@@ -203,8 +203,8 @@
     z-index:5;
     padding:5px 10px;
     border-radius:8px;
-    background:#27272a;
-    border:1px solid #3f3f46;
+    background:var(--surface-strong);
+    border:1px solid var(--line-strong);
     color:#ffffff;
     font-size:12px;
     font-weight:700;
@@ -233,7 +233,7 @@
 }
 
 .wd-poster-card .wd-title{
-    color:#ffffff;
+    color:var(--color-zinc-100);
     font-size:16px;
     font-weight:600;
     line-height:1.25;
@@ -248,3 +248,6 @@
     font-size:14px;
     line-height:1.3;
 }
+
+/* Light theme: TMDB-yellow scores need a darker shade on white. */
+html.light .wd-score:not(.wd-score--none):not(.wd-score--tmdb){ color:#a16207; }

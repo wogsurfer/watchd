@@ -72,17 +72,17 @@ const anything = days.some((d) => d.plays > 0);
 <style>
   .otd-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   @media (min-width: 900px) { .otd-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; } }
-  .otd-col { background: rgb(24 24 27 / .6); border: 1px solid #27272a; border-radius: 16px; padding: 14px; min-width: 0; }
-  .otd-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #27272a; }
-  .otd-ago { color: #f4f4f5; font-weight: 800; font-size: 17px; }
+  .otd-col { background: rgb(24 24 27 / .6); border: 1px solid var(--line-mid); border-radius: 16px; padding: 14px; min-width: 0; }
+  .otd-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line-mid); }
+  .otd-ago { color: var(--color-zinc-100); font-weight: 800; font-size: 17px; }
   .otd-date { color: #71717a; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; }
   .otd-list { display: flex; flex-direction: column; gap: 8px; }
   .otd-item { display: flex; gap: 10px; align-items: center; border-radius: 10px; padding: 4px; margin: -4px; transition: background .15s; }
-  a.otd-item:hover { background: #27272a; }
-  .otd-poster { width: 38px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 5px; flex-shrink: 0; background: #27272a; }
+  a.otd-item:hover { background: var(--surface-strong); }
+  .otd-poster { width: 38px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 5px; flex-shrink: 0; background: var(--surface-strong); }
   .otd-blank { display: block; }
   .otd-text { display: flex; flex-direction: column; min-width: 0; }
-  .otd-title { color: #e4e4e7; font-weight: 700; font-size: 13.5px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .otd-title { color: var(--color-zinc-200); font-weight: 700; font-size: 13.5px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .otd-detail { color: #a1a1aa; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .otd-none { color: #52525b; font-size: 13px; }
   .otd-more { color: #71717a; font-size: 12px; font-weight: 700; margin-top: 10px; }

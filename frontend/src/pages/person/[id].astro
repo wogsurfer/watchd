@@ -79,7 +79,7 @@ const categoryLabels = { all: "All", acting: "Acting", directing: "Directing", w
                 {person.known_for_department}
               </p>
             )}
-            <h1 class="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[0.95]">
+            <h1 class="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight text-zinc-100 leading-[0.95]">
               {person.name}
             </h1>
           </div>
@@ -114,7 +114,7 @@ const categoryLabels = { all: "All", acting: "Acting", directing: "Directing", w
                   <div class="mt-10 pt-2 max-w-4xl">
                     <div class="flex items-center gap-3 mb-4">
                       <span class="w-1 h-7 rounded-full bg-red-600"></span>
-                      <h2 class="text-2xl md:text-3xl font-black tracking-tight text-white">
+                      <h2 class="text-2xl md:text-3xl font-black tracking-tight text-zinc-100">
                         Biography
                       </h2>
                     </div>
@@ -186,7 +186,7 @@ const categoryLabels = { all: "All", acting: "Acting", directing: "Directing", w
             return (
               <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-zinc-400">
                 <p>
-                  <span class="font-bold text-white">{categoryWatched}</span>
+                  <span class="font-bold text-zinc-100">{categoryWatched}</span>
                   of {categoryTotal} {categoryLabels[selectedCategory].toLowerCase()} credits watched
                   <span class="text-zinc-600"> · </span>
                   <span>{categoryPercentage}%</span>
@@ -195,12 +195,12 @@ const categoryLabels = { all: "All", acting: "Acting", directing: "Directing", w
                 {person.imdb_highest && person.imdb_lowest && (
                   <p>
                     <span class="text-zinc-500">Average IMDb rating:</span>
-                    <span class="font-bold text-white">
+                    <span class="font-bold text-zinc-100">
                       {person.imdb_highest.rating.toFixed(1)}
                     </span>
                     <span class="text-zinc-500"> highest</span>
                     <span class="text-zinc-600"> · </span>
-                    <span class="font-bold text-white">
+                    <span class="font-bold text-zinc-100">
                       {person.imdb_lowest.rating.toFixed(1)}
                     </span>
                     <span class="text-zinc-500"> lowest</span>

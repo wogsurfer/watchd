@@ -39,8 +39,8 @@ const tabs = [
 <style>
   .coll-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 24px; margin-bottom: 1.75rem; }
   .coll-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-  .coll-tab { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; border: 1px solid #27272a; color: #a1a1aa; font-size: 13px; font-weight: 800; text-decoration: none; transition: color .15s, border-color .15s, background .15s; }
-  .coll-tab:hover { color: #f4f4f5; border-color: #3f3f46; }
+  .coll-tab { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line-mid); color: #a1a1aa; font-size: 13px; font-weight: 800; text-decoration: none; transition: color .15s, border-color .15s, background .15s; }
+  .coll-tab:hover { color: var(--color-zinc-100); border-color: var(--line-strong); }
   .coll-tab.active { color: #fff; background: #e50914; border-color: #e50914; }
   .coll-tab-count { padding: 0 7px; border-radius: 999px; background: rgba(255, 255, 255, .1); font-size: 11px; line-height: 18px; }
   .coll-tab.active .coll-tab-count { background: rgba(0, 0, 0, .25); }
@@ -48,5 +48,6 @@ const tabs = [
   .coll-add svg { width: 14px; height: 14px; }
   .coll-add:hover, .coll-add.active { background: #fff; }
   :global(html.light) .coll-tab { border-color: #d4d4d8; color: #52525b; }
+  :global(html.light) .coll-tab.active { color: #fff; border-color: #e50914; }
   :global(html.light) .coll-add { background: #18181b; color: #fff; }
 </style>

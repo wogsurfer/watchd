@@ -87,20 +87,20 @@ const fmtDate = (s: string | null) =>
 <style>
   .uw-empty { color: #71717a; }
   .uw-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-bottom: 28px; }
-  .uw-tile { padding: 16px; border-radius: 16px; background: #0a0a0a; border: 1px solid #1c1c1f; }
-  .uw-tile b { display: block; color: #f4f4f5; font-size: 26px; font-weight: 900; letter-spacing: -.03em; }
+  .uw-tile { padding: 16px; border-radius: 16px; background: var(--surface-raised); border: 1px solid var(--line-soft); }
+  .uw-tile b { display: block; color: var(--color-zinc-100); font-size: 26px; font-weight: 900; letter-spacing: -.03em; }
   .uw-tile span { color: #a1a1aa; font-size: 12.5px; font-weight: 700; }
   .uw-group { margin-bottom: 32px; }
-  .uw-group h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; color: #f4f4f5; font-size: 18px; font-weight: 900; letter-spacing: -.01em; }
-  .uw-group h2 span { padding: 0 8px; border-radius: 999px; background: #27272a; color: #d4d4d8; font-size: 12px; line-height: 20px; }
+  .uw-group h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; color: var(--color-zinc-100); font-size: 18px; font-weight: 900; letter-spacing: -.01em; }
+  .uw-group h2 span { padding: 0 8px; border-radius: 999px; background: var(--surface-strong); color: var(--color-zinc-300); font-size: 12px; line-height: 20px; }
   .uw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 16px; }
   .uw-card { display: block; min-width: 0; text-decoration: none; }
-  .uw-cover { position: relative; display: block; aspect-ratio: 2 / 3; border-radius: 10px; overflow: hidden; background: #111113; border: 1px solid #1f1f23; transition: border-color .15s, transform .15s; }
+  .uw-cover { position: relative; display: block; aspect-ratio: 2 / 3; border-radius: 10px; overflow: hidden; background: var(--surface-sunken); border: 1px solid #1f1f23; transition: border-color .15s, transform .15s; }
   .uw-card:hover .uw-cover { border-color: #e50914; transform: translateY(-2px); }
   .uw-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .uw-cover i { position: absolute; left: 6px; bottom: 6px; padding: 1px 7px; border-radius: 999px; background: rgba(0, 0, 0, .8); color: #e4e4e7; font-style: normal; font-size: 10px; font-weight: 800; }
+  .uw-cover i { position: absolute; left: 6px; bottom: 6px; padding: 1px 7px; border-radius: 999px; background: rgba(0, 0, 0, .8); color: var(--color-zinc-200); font-style: normal; font-size: 10px; font-weight: 800; }
   .uw-nocover { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 10px; text-align: center; color: #71717a; font-size: 12px; font-weight: 800; }
-  .uw-title { display: block; margin-top: 7px; color: #e4e4e7; font-size: 13px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .uw-title { display: block; margin-top: 7px; color: var(--color-zinc-200); font-size: 13px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .uw-sub { display: block; margin-top: 1px; color: #a1a1aa; font-size: 11.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .uw-note { margin-top: 8px; color: #71717a; font-size: 12px; }
   :global(html.light) .uw-tile { background: #fafafa; border-color: #e4e4e7; }

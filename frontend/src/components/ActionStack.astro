@@ -203,7 +203,7 @@ const requestTitle = isMonitored
     min-height: 44px;
     padding: 0 14px;
     border-radius: 12px;
-    border: 1px solid #27272a !important;
+    border: 1px solid var(--line-mid) !important;
     background: rgba(24, 24, 27, .85) !important;
     color: #a1a1aa !important;
     font-size: 14px;
@@ -212,8 +212,8 @@ const requestTitle = isMonitored
     transition: background-color .15s ease, border-color .15s ease, color .15s ease;
   }
   .action-stack button:hover:not(:disabled) {
-    background: #27272a !important;
-    color: #f4f4f5 !important;
+    background: var(--surface-strong) !important;
+    color: var(--color-zinc-100) !important;
   }
   .action-stack button:disabled { cursor: not-allowed; }
   .action-stack button:focus-visible { outline: 2px solid #ef4444; outline-offset: 2px; }
@@ -229,4 +229,10 @@ const requestTitle = isMonitored
   .action-stack button[data-state="active"][data-tone="sky"]    { background: rgba(14, 165, 233, .2) !important;  border-color: rgba(14, 165, 233, .45) !important; color: #7dd3fc !important; }
   .action-stack button[data-state="active"][data-tone="purple"] { background: rgba(168, 85, 247, .2) !important;  border-color: rgba(168, 85, 247, .45) !important; color: #d8b4fe !important; }
   .action-stack button[data-state="active"][data-tone="orange"] { background: rgba(249, 115, 22, .2) !important;  border-color: rgba(249, 115, 22, .45) !important; color: #fdba74 !important; }
+  /* Light theme: the pastel tone colours need darker shades on white. */
+  :global(html.light) .action-stack button[data-state="active"][data-tone="red"]    { color: #b91c1c !important; }
+  :global(html.light) .action-stack button[data-state="active"][data-tone="amber"]  { color: #b45309 !important; }
+  :global(html.light) .action-stack button[data-state="active"][data-tone="sky"]    { color: #0369a1 !important; }
+  :global(html.light) .action-stack button[data-state="active"][data-tone="purple"] { color: #7e22ce !important; }
+  :global(html.light) .action-stack button[data-state="active"][data-tone="orange"] { color: #c2410c !important; }
 </style>

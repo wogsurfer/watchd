@@ -48,6 +48,15 @@
   --color-brand-jellyfin: #a855f7; /* purple-500 */
   --color-brand-plex: #eab308;    /* yellow-500 */
 
+  /* Surfaces and lines used by component styles (light values below). */
+  --surface-raised: #0a0a0a;      /* panels and cards */
+  --surface-sunken: #111113;      /* inputs and rows inside panels */
+  --surface-hover: #18181b;       /* hover, chips, image placeholders */
+  --surface-strong: #27272a;      /* selected rows, pills */
+  --line-soft: #1c1c1f;
+  --line-mid: #27272a;
+  --line-strong: #3f3f46;
+
   /* Accent color scale — default: blue */
   --accent-400: #ff4d57;
   --accent-500: #e50914;
@@ -112,6 +121,14 @@ html.light {
   
   --color-brand-jellyfin: #7e22ce; /* purple-700 */
   --color-brand-plex: #a16207;    /* yellow-700 (darker yellow for contrast) */
+
+  --surface-raised: #fafafa;
+  --surface-sunken: #ffffff;
+  --surface-hover: #f4f4f5;
+  --surface-strong: #e4e4e7;
+  --line-soft: #e4e4e7;
+  --line-mid: #e4e4e7;
+  --line-strong: #d4d4d8;
 }
 
 /* ── App-like feel ─────────────────────────────────────────────────────────── */

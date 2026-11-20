@@ -35,7 +35,7 @@ const { tmdbId, latestSeason } = Astro.props;
     .episode-strip .es-row > * { flex: 0 0 82%; scroll-snap-align: start; }
   }
   :global(.es-card) { display: block; border-radius: 14px; overflow: hidden; background: var(--color-zinc-900); border: 1px solid var(--color-zinc-800); }
-  :global(.es-still) { position: relative; aspect-ratio: 16 / 9; background: #18181b center / cover no-repeat; }
+  :global(.es-still) { position: relative; aspect-ratio: 16 / 9; background: var(--surface-hover) center / cover no-repeat; }
   :global(.es-still::after) { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, rgba(0,0,0,.85)); }
   :global(.es-text) { position: absolute; left: 14px; right: 14px; bottom: 12px; z-index: 1; }
   :global(.es-when) { display: inline-block; padding: 3px 8px; border-radius: 6px; background: var(--color-red-600); color: #fff; font-size: 12px; font-weight: 800; }

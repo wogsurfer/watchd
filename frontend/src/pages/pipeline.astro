@@ -65,23 +65,25 @@ export const prerender = false;
   .pl { max-width: 860px; }
   .pl-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 1.5rem; }
   .pl-sub { margin-top: 4px; color: #a1a1aa; font-size: 14px; }
-  .pl-refresh { padding: 8px 14px; border-radius: 999px; border: 1px solid #3f3f46; color: #e4e4e7; font-size: 13px; font-weight: 800; }
+  .pl-refresh { padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--color-zinc-200); font-size: 13px; font-weight: 800; }
   .pl-refresh:hover { border-color: #71717a; }
   .pl-refresh:disabled { opacity: .5; }
   .pl-checks { display: flex; flex-direction: column; gap: 10px; }
-  .pl-card { padding: 14px 16px; border-radius: 14px; background: #0a0a0a; border: 1px solid #1c1c1f; }
+  .pl-card { padding: 14px 16px; border-radius: 14px; background: var(--surface-raised); border: 1px solid var(--line-soft); }
   .pl-card[data-status="warn"] { border-color: rgba(245, 158, 11, .45); }
   .pl-card[data-status="error"] { border-color: rgba(239, 68, 68, .55); background: rgba(239, 68, 68, .05); }
   .pl-card-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .pl-card h2 { color: #f4f4f5; font-size: 15px; font-weight: 800; min-width: 130px; }
+  .pl-card h2 { color: var(--color-zinc-100); font-size: 15px; font-weight: 800; min-width: 130px; }
   .pl-summary { color: #a1a1aa; font-size: 13px; }
   .pl-dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; flex: none; }
   .pl-card[data-status="warn"] .pl-dot { background: #f59e0b; }
   .pl-card[data-status="error"] .pl-dot { background: #ef4444; }
   .pl-card[data-status="warn"] .pl-summary { color: #fbbf24; }
   .pl-card[data-status="error"] .pl-summary { color: #f87171; }
-  .pl-details { margin: 10px 0 0 20px; display: flex; flex-direction: column; gap: 4px; color: #d4d4d8; font-size: 12.5px; list-style: disc; overflow-wrap: anywhere; }
+  .pl-details { margin: 10px 0 0 20px; display: flex; flex-direction: column; gap: 4px; color: var(--color-zinc-300); font-size: 12.5px; list-style: disc; overflow-wrap: anywhere; }
   html.light .pl-card { background: #fafafa; border-color: #e4e4e7; }
   html.light .pl-card h2 { color: #18181b; }
   html.light .pl-details { color: #3f3f46; }
+  html.light .pl-card[data-status="warn"] .pl-summary { color: #b45309; }
+  html.light .pl-card[data-status="error"] .pl-summary { color: #b91c1c; }
 </style>

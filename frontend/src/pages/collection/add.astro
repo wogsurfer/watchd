@@ -136,31 +136,31 @@ const coverUrl = p.get("cover");
 
 <style is:global>
   .add-into { margin: -8px 0 16px; color: #a1a1aa; font-size: 14px; }
-  .add-into b { color: #f4f4f5; }
+  .add-into b { color: var(--color-zinc-100); }
 </style>
 
 <style is:global>
   .add { max-width: 820px; }
-  .add-find { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 12px; padding: 18px; border-radius: 18px; background: #0a0a0a; border: 1px solid #1c1c1f; }
+  .add-find { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 12px; padding: 18px; border-radius: 18px; background: var(--surface-raised); border: 1px solid var(--line-soft); }
   .add-find label { display: flex; flex-direction: column; gap: 6px; color: #a1a1aa; font-size: 12px; font-weight: 700; }
-  .add-find input { width: 100%; padding: 10px 12px; border-radius: 10px; background: #111113; border: 1px solid #27272a; color: #f4f4f5; font-size: 15px; }
+  .add-find input { width: 100%; padding: 10px 12px; border-radius: 10px; background: var(--surface-sunken); border: 1px solid var(--line-mid); color: var(--color-zinc-100); font-size: 15px; }
   .add-find input:focus { outline: none; border-color: #e50914; }
   .add-go { padding: 11px 22px; border-radius: 999px; background: #e50914; color: #fff; font-weight: 900; }
   .add-status { margin: 14px 0 8px; color: #a1a1aa; font-size: 14px; font-weight: 600; }
   .add-product { margin-bottom: 12px; }
-  .add-prod { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 14px; background: #111113; border: 1px solid #27272a; }
+  .add-prod { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 14px; background: var(--surface-sunken); border: 1px solid var(--line-mid); }
   .add-prod img { width: 56px; height: 70px; object-fit: contain; background: #fff; border-radius: 6px; }
-  .add-prod-title { color: #f4f4f5; font-weight: 800; font-size: 14px; }
+  .add-prod-title { color: var(--color-zinc-100); font-weight: 800; font-size: 14px; }
   .add-dim { color: #71717a; font-size: 12px; }
   .add-already { margin-bottom: 8px; color: #fcd34d; font-size: 14px; }
   .add-already a { text-decoration: underline; }
   .add-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
-  .add-result { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 12px; background: #0f0f11; border: 1px solid #1c1c1f; text-decoration: none; }
+  .add-result { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 12px; background: var(--surface-sunken); border: 1px solid var(--line-soft); text-decoration: none; }
   .add-result:hover { border-color: #e50914; }
-  .add-result img, .add-noposter { flex: none; width: 46px; aspect-ratio: 2 / 3; border-radius: 6px; object-fit: cover; background: #27272a; }
-  .add-result b { display: block; color: #f4f4f5; font-size: 14px; }
+  .add-result img, .add-noposter { flex: none; width: 46px; aspect-ratio: 2 / 3; border-radius: 6px; object-fit: cover; background: var(--surface-strong); }
+  .add-result b { display: block; color: var(--color-zinc-100); font-size: 14px; }
   .add-result i { color: #71717a; font-size: 12px; font-style: normal; }
   .add-manual { margin-top: 18px; color: #71717a; font-size: 13px; }
-  .add-manual a { color: #d4d4d8; text-decoration: underline; }
+  .add-manual a { color: var(--color-zinc-300); text-decoration: underline; }
   @media (max-width: 640px) { .add-find { grid-template-columns: 1fr; } }
 </style>

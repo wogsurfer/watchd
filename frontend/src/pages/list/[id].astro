@@ -497,7 +497,7 @@ const sonarrUrl = `${origin}/api/proxy/sonarr-compat/${list?.id}/api/v3/series`;
       if (result.imported > 0) {
         const refresh = document.createElement('button');
         refresh.type = 'button';
-        refresh.className = 'mt-3 rounded-lg bg-zinc-800 px-4 py-2 font-medium text-white hover:bg-zinc-700';
+        refresh.className = 'mt-3 rounded-lg bg-zinc-800 px-4 py-2 font-medium text-zinc-100 hover:bg-zinc-700';
         refresh.textContent = 'Refresh this list';
         refresh.addEventListener('click', () => window.location.reload());
         letterboxdStatus.append(refresh);

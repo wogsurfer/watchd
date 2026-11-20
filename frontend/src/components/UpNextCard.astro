@@ -192,8 +192,8 @@ const code =
 }
 
 .wd-panel{
-    background:#18181b;
-    border:1px solid #27272a;
+    background:var(--surface-hover);
+    border:1px solid var(--line-mid);
     border-radius:16px 16px 0 0;
     overflow:hidden;
 }
@@ -218,7 +218,7 @@ const code =
     gap:14px;
     padding:0 20px;
     text-align:center;
-    background:#18181b;
+    background:var(--surface-hover);
     color:#52525b;
     font-size:11px;
     font-weight:800;
@@ -233,7 +233,7 @@ const code =
     height:48px;
     padding:0 12px 0 6px;
     box-sizing:border-box;
-    border-top:1px solid #27272a;
+    border-top:1px solid var(--line-mid);
 }
 
 .wd-actions{
@@ -313,7 +313,7 @@ const code =
 .wd-progress{
     position:relative;
     height:3px;
-    background:#27272a;
+    background:var(--surface-strong);
     transform-origin:bottom;
     transition:transform .15s ease;
     outline:none;
@@ -347,7 +347,7 @@ const code =
 }
 
 .wd-title{
-    color:#ffffff;
+    color:var(--color-zinc-100);
     font-size:16px;
     font-weight:600;
     line-height:1.25;
@@ -368,7 +368,7 @@ a.wd-title, a.wd-show{
 }
 
 a.wd-title:hover{ color:#fca5a5; }
-a.wd-show:hover{ color:#f4f4f5; }
+a.wd-show:hover{ color:var(--color-zinc-100); }
 
 .wd-show{
     margin-top:3px;
@@ -387,8 +387,8 @@ a.wd-show:hover{ color:#f4f4f5; }
     z-index:5;
     padding:5px 10px;
     border-radius:8px;
-    background:#27272a;
-    border:1px solid #3f3f46;
+    background:var(--surface-strong);
+    border:1px solid var(--line-strong);
     color:#ffffff;
     font-size:12px;
     font-weight:700;

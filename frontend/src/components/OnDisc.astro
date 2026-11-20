@@ -55,9 +55,9 @@ const label = (d: Disc) => (seriesTitle ? seasonOf(d.title) : d.in_set || d.edit
 <style>
   .disc-row { display: flex; flex-direction: column; align-items: stretch; gap: 6px; margin-top: 1rem; padding: 0 4px; }
   .disc-row-label { color: #71717a; font-size: 10px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; margin-bottom: -1px; }
-  .disc-chip { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 5px 10px 5px 6px; border-radius: 10px; background: #18181b; border: 1px solid #27272a; color: #d4d4d8; font-size: 12px; font-weight: 700; }
+  .disc-chip { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 5px 10px 5px 6px; border-radius: 10px; background: var(--surface-hover); border: 1px solid var(--line-mid); color: var(--color-zinc-300); font-size: 12px; font-weight: 700; }
   .disc-chip img { flex: none; height: 22px; width: auto; border-radius: 3px; }
-  .disc-chip-fmt { flex: none; padding: 2px 6px; border-radius: 5px; background: #27272a; font-size: 11px; font-weight: 900; }
+  .disc-chip-fmt { flex: none; padding: 2px 6px; border-radius: 5px; background: var(--surface-strong); font-size: 11px; font-weight: 900; }
   .disc-chip-set { flex: 1 1 auto; min-width: 0; color: #a1a1aa; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .disc-chip-state { flex: none; color: #a1a1aa; font-size: 11px; font-weight: 800; white-space: nowrap; }
   .disc-chip.past { opacity: .55; }
