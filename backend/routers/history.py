@@ -2409,6 +2409,68 @@ async def unwatch_show(
 # Manual scrobble session endpoints
 # ---------------------------------------------------------------------------
 
+async def _session_episode(db: AsyncSession, body: schemas.ManualSessionStart, user_id: int) -> Media:
+    """The episode for a check-in, with its show, title and runtime. A show not
+    yet in the library is added first, as marking an episode watched does, so a
+    check-in on a new show isn't left as an "Unknown" episode with no show."""
+    from routers.webhooks import _find_or_create_show
+
+    api_key = await get_user_tmdb_key(db, user_id)
+    try:
+        show = await _find_or_create_show(db, body.show_tmdb_id, api_key)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"TMDB show not found: {e}")
+
+    found = await db.execute(
+        select(Media)
+        .where(Media.media_type == MediaType.episode, Media.show_id == show.id)
+        .where(Media.season_number == body.season_number, Media.episode_number == body.episode_number)
+        .order_by(Media.id)
+    )
+    media = found.scalars().first()
+    if not media and body.tmdb_id:
+        # An earlier check-in may have left the episode without its show.
+        orphan = await db.execute(
+            select(Media)
+            .where(Media.tmdb_id == body.tmdb_id, Media.media_type == MediaType.episode, Media.show_id.is_(None))
+            .order_by(Media.id)
+        )
+        media = orphan.scalars().first()
+        if media:
+            media.show_id = show.id
+            media.season_number = body.season_number
+            media.episode_number = body.episode_number
+    ep: dict = {}
+    if not media or media.title in (None, "", "Unknown") or not media.runtime:
+        try:
+            ep = await tmdb.get_episode(body.show_tmdb_id, body.season_number, body.episode_number, api_key=api_key) or {}
+        except Exception:
+            ep = {}
+    if media:
+        if media.title in (None, "", "Unknown") and ep.get("name"):
+            media.title = ep["name"]
+        if not media.runtime and ep.get("runtime"):
+            media.runtime = ep["runtime"]
+    else:
+        media = Media(
+            tmdb_id=ep.get("id") or body.tmdb_id,
+            media_type=MediaType.episode,
+            title=ep.get("name") or body.title or "Unknown",
+            runtime=ep.get("runtime") or body.runtime,
+            season_number=body.season_number,
+            episode_number=body.episode_number,
+            show_id=show.id,
+        )
+        db.add(media)
+        await db.flush()
+    if not media.poster_path or media.tmdb_data is None or media.title == "Unknown":
+        try:
+            await enrich_media(media, api_key=api_key, series_tmdb_id=body.show_tmdb_id)
+        except Exception:
+            pass
+    return media
+
+
 async def _get_or_create_media_for_session(
     db: AsyncSession,
     body: schemas.ManualSessionStart,
@@ -2420,6 +2482,14 @@ async def _get_or_create_media_for_session(
         media = result.scalar_one_or_none()
         if media:
             return media
+
+    if (
+        body.media_type == MediaType.episode
+        and body.show_tmdb_id
+        and body.season_number is not None
+        and body.episode_number is not None
+    ):
+        return await _session_episode(db, body, user_id)
 
     if body.tmdb_id:
         result = await db.execute(
