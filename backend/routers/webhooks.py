@@ -725,6 +725,8 @@ async def _episode_parts(db: AsyncSession, media: Media, data: dict, api_key: st
     since the media server only reports the first episode's ids."""
     span = _episode_span(data)
     parts = [media]
+    if span <= 1:
+        return parts
     for n in range(int(data["episode_number"]) + 1, int(data["episode_number"]) + span):
         part_data = dict(data, jellyfin_id=None, tmdb_id=None, episode_number=n,
                          episode_number_end=None, title=f"Episode {n}")

@@ -168,6 +168,13 @@ class MultiEpisodeFileTests(IsolatedAsyncioTestCase):
         # The second episode is looked up by number, not by the first one's ids.
         self.assertEqual(asked, [(4, 2, None, None)])
 
+    async def test_a_film_is_its_own_only_part(self):
+        # Films have no episode number; stopping one must not crash.
+        film = type("M", (), {"id": 7, "show_id": None})()
+        data = {"media_type": "movie", "episode_number": None, "episode_number_end": None}
+        parts = await webhooks._episode_parts(None, film, data, None)
+        self.assertEqual([p.id for p in parts], [7])
+
 
 if __name__ == "__main__":
     unittest.main()
