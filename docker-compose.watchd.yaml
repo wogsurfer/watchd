@@ -17,7 +17,7 @@ name: scrob
 services:
   db:
     image: postgres:16-alpine
-    restart: unless-stopped
+    restart: always
     env_file: .env
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -37,7 +37,7 @@ services:
 
   app:
     build: .
-    restart: unless-stopped
+    restart: always
     env_file: .env
     environment:
       POSTGRES_HOST: db
@@ -66,7 +66,7 @@ services:
 
   backup:
     build: ./backup
-    restart: unless-stopped
+    restart: always
     environment:
       PGHOST: db
       PGPORT: "5432"
@@ -89,7 +89,7 @@ services:
   watchdog:
     build: ./backup
     entrypoint: ["/bin/sh", "/usr/local/bin/watchdog.sh"]
-    restart: unless-stopped
+    restart: always
     environment:
       TZ: Europe/Malta
       NTFY_URL: ${NTFY_URL:-}
