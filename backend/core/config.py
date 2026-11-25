@@ -17,6 +17,10 @@ class Settings(BaseSettings):
 
     server_url: str = "http://localhost:7330"
 
+    # Key the Homepage dashboard sends (X-Api-Key) for /dashboard/homepage.
+    # Unset = that endpoint is off.
+    homepage_key: Optional[str] = None
+
     # OIDC / SSO
     oidc_enabled: bool = False
     oidc_provider_name: str = "SSO"

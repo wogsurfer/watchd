@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import select, func
 from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -649,3 +649,32 @@ async def dashboard_on_this_day(
             "more": max(0, len(entries) - ON_THIS_DAY_SHOWN),
         })
     return {"days": out}
+
+
+@router.get("/homepage")
+async def homepage_widget(
+    x_api_key: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Figures for the Watchd tile on the Homepage dashboard. Homepage can't
+    sign in, so it sends HOMEPAGE_KEY instead; the figures are the first
+    admin's (the owner's) week at a glance."""
+    import hmac
+    from core.config import settings
+
+    if not settings.homepage_key or not x_api_key or not hmac.compare_digest(x_api_key, settings.homepage_key):
+        raise HTTPException(status_code=401, detail="Bad or missing key")
+    owner = (await db.execute(
+        select(User).where(User.is_admin.is_(True)).order_by(User.id).limit(1)
+    )).scalar_one_or_none()
+    if owner is None:
+        raise HTTPException(status_code=404, detail="No owner account")
+    glance = await dashboard_glance(db=db, current_user=owner)
+    week = glance["week"]
+    return {
+        "episodes_week": week["episodes"],
+        "movies_week": week["movies"],
+        "hours_week": round(week["minutes"] / 60, 1),
+        "streak_days": glance["streak_days"],
+        "top_show": (glance["top_show"] or {}).get("title"),
+    }
