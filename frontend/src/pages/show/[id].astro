@@ -10,6 +10,7 @@ import ActionStack from "../../components/ActionStack.astro";
 import EpisodeOrderSelector from "../../components/EpisodeOrderSelector.astro";
 import CrewSection from "../../components/CrewSection.astro";
 import EpisodeStrip from "../../components/EpisodeStrip.astro";
+import RatingHeatmap from "../../components/RatingHeatmap.astro";
 import FullCast from "../../components/FullCast.astro";
 import { api, type Show } from "../../lib/api";
 export const prerender = false;
@@ -380,6 +381,9 @@ const watchedRange = (() => {
 
 <!-- Awards: filled from TVDB after load; hidden when there are none -->
 {show?.tvdb_id && <AwardsList endpoint={`/api/proxy/shows/tvdb/${show.tvdb_id}/awards?tmdb_id=${show.tmdb_id}`} />}
+
+<!-- Episode ratings heat map, filled after load -->
+<RatingHeatmap tmdbId={show.tmdb_id} />
 
         <!-- Seasons -->
         <div class="page-section">

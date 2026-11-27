@@ -3956,3 +3956,52 @@ async def get_episode_strip(
             pass
     await asyncio.gather(*(rate(c) for c in out["recent"] if c["imdb_rating"] is None))
     return out
+
+
+@router.get("/{series_tmdb_id}/rating-heatmap")
+async def get_rating_heatmap(
+    series_tmdb_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """The show page's episode ratings heat map: every aired episode's TMDB
+    rating, season by season (Specials and hidden seasons left out). Fetched
+    after the page loads, so a long show never holds the page up."""
+    import asyncio
+
+    api_key = await get_user_tmdb_key(db, current_user.id)
+    if not check_tmdb_key(api_key):
+        raise HTTPException(status_code=400, detail="TMDB API key not configured")
+    data = await tmdb.get_show_light(series_tmdb_id, api_key=api_key)
+    show = (await db.execute(select(ShowModel).where(ShowModel.tmdb_id == series_tmdb_id))).scalar_one_or_none()
+    hidden = ((show.tmdb_data or {}).get("hidden_seasons") or []) if show else []
+    numbers = sorted(
+        s["season_number"] for s in data.get("seasons") or []
+        if (s.get("season_number") or 0) > 0 and s["season_number"] not in hidden
+    )
+    fetched = await asyncio.gather(
+        *(tmdb.get_season(series_tmdb_id, n, api_key=api_key) for n in numbers),
+        return_exceptions=True,
+    )
+    return {"seasons": heatmap_seasons(numbers, fetched, datetime.now(HOME_TZ).date().isoformat())}
+
+
+def heatmap_seasons(numbers: list[int], fetched: list, today: str) -> list[dict]:
+    """Each season's aired episodes with their rating (None when TMDB has no
+    votes yet). A season that failed to load, or has nothing aired, is left out."""
+    out = []
+    for number, season in zip(numbers, fetched):
+        if not isinstance(season, dict):
+            continue
+        episodes = [
+            {
+                "episode_number": e["episode_number"],
+                "title": e.get("name"),
+                "rating": round(e["vote_average"], 1) if e.get("vote_average") and e.get("vote_count") else None,
+            }
+            for e in season.get("episodes") or []
+            if e.get("episode_number") is not None and e.get("air_date") and e["air_date"] <= today
+        ]
+        if episodes:
+            out.append({"season_number": number, "episodes": episodes})
+    return out

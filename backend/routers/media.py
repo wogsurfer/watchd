@@ -5499,6 +5499,8 @@ async def get_media_details(
             "imdb_rating": imdb_rating,
             "user_rating": user_rating,
             "adult": data.get("adult", False),
+            "mid_credits_scene": tmdb.credits_scenes(data)[0],
+            "post_credits_scene": tmdb.credits_scenes(data)[1],
             "collection": collection,
             "franchise": franchise,
             "production_companies": production_companies,

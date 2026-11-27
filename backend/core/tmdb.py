@@ -110,7 +110,7 @@ async def validate_api_key(api_key: str) -> bool:
 
 
 async def get_movie(tmdb_id: int, api_key: str = None, language: str | None = None) -> dict:
-    params: dict = {"append_to_response": "credits,release_dates,recommendations,external_ids"}
+    params: dict = {"append_to_response": "credits,release_dates,recommendations,external_ids,keywords"}
     if language:
         params["language"] = language
     return await _get(
@@ -118,6 +118,13 @@ async def get_movie(tmdb_id: int, api_key: str = None, language: str | None = No
         headers=get_headers(api_key),
         params=params,
     )
+
+
+def credits_scenes(data: dict) -> tuple[bool, bool]:
+    """(mid-credits scene, post-credits scene) for a film. TMDB has no field
+    for these; its users tag films with the keywords below instead."""
+    names = {k.get("name", "") for k in (data.get("keywords") or {}).get("keywords", [])}
+    return "duringcreditsstinger" in names, "aftercreditsstinger" in names
 
 
 async def get_images(tmdb_id: int, kind: str = "movie", api_key: str = None) -> dict:

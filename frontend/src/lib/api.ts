@@ -599,6 +599,8 @@ export interface MediaItem {
   age_rating?: string | null;
   imdb_id?: string | null;
   adult?: boolean;
+  mid_credits_scene?: boolean;
+  post_credits_scene?: boolean;
   show_id?: number | null;
   show_title?: string | null;
   show_tmdb_id?: number | null;
@@ -845,6 +847,8 @@ export interface Show {
   age_rating?: string | null;
   imdb_id?: string | null;
   adult?: boolean;
+  mid_credits_scene?: boolean;
+  post_credits_scene?: boolean;
   user_rating?: number | null;
   first_air_date: string | null;
   last_air_date: string | null;

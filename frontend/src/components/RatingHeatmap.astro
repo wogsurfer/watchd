@@ -1,0 +1,74 @@
+---
+// Episode ratings heat map for the show page: one row per season, one cell per
+// aired episode, coloured by its TMDB rating (5 and under red, 9+ green).
+// Filled after the page loads; hidden when TMDB has no episode ratings.
+interface Props {
+  tmdbId: number;
+}
+
+const { tmdbId } = Astro.props;
+---
+
+<section class="page-section rating-heatmap" data-heatmap={String(tmdbId)} hidden>
+  <div class="flex items-center justify-between page-section-head">
+    <h2 class="text-3xl font-black text-zinc-100 tracking-tighter uppercase">Episode Ratings</h2>
+    <span class="hm-legend" aria-hidden="true">
+      <span>5</span><span class="hm-scale"></span><span>9+</span>
+    </span>
+  </div>
+  <div class="hm-grid"></div>
+</section>
+
+<style>
+  .rating-heatmap .hm-legend { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; color: var(--color-zinc-500); }
+  .rating-heatmap .hm-scale { width: 90px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, hsl(0 62% 40%), hsl(45 62% 40%), hsl(125 62% 40%)); }
+  .rating-heatmap .hm-grid { display: flex; flex-direction: column; gap: 6px; padding: 18px; border-radius: 20px; background: var(--color-zinc-900); border: 1px solid var(--color-zinc-800); }
+  :global(.hm-row) { display: flex; align-items: flex-start; gap: 12px; }
+  :global(.hm-season) { flex: 0 0 64px; display: flex; flex-direction: column; padding-top: 6px; font-size: 13px; font-weight: 900; color: var(--color-zinc-400); text-transform: uppercase; }
+  :global(.hm-season:hover) { color: var(--color-zinc-100); }
+  :global(.hm-avg) { font-size: 11px; font-weight: 700; color: var(--color-zinc-500); text-transform: none; }
+  :global(.hm-cells) { display: flex; flex-wrap: wrap; gap: 4px; }
+  :global(.hm-cell) { width: 38px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px; color: #fff; font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; transition: transform .1s, box-shadow .1s; }
+  :global(.hm-cell:hover) { transform: scale(1.12); box-shadow: 0 0 0 2px var(--color-zinc-100); }
+  :global(.hm-cell.hm-none) { background: var(--color-zinc-800); color: var(--color-zinc-500); }
+  @media (max-width: 640px) {
+    .rating-heatmap .hm-grid { padding: 12px; }
+    :global(.hm-season) { flex-basis: 44px; font-size: 12px; }
+    :global(.hm-cell) { width: 32px; height: 26px; font-size: 10px; }
+  }
+</style>
+
+<script>
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+
+  // 5 and under red, about 7 amber, 9 and over green.
+  const colour = (r: number) => `hsl(${Math.round(Math.min(1, Math.max(0, (r - 5) / 4)) * 125)} 62% 40%)`;
+
+  function row(show: string, s: any) {
+    const rated = s.episodes.filter((e: any) => e.rating != null).map((e: any) => e.rating as number);
+    const avg = rated.length ? (rated.reduce((a: number, b: number) => a + b, 0) / rated.length).toFixed(1) : null;
+    const cells = s.episodes.map((e: any) => {
+      const href = `/show/${show}/season/${s.season_number}/${e.episode_number}`;
+      const label = `S${s.season_number}E${e.episode_number} · ${e.title || ""} · ${e.rating != null ? e.rating.toFixed(1) : "not rated yet"}`;
+      return e.rating != null
+        ? `<a class="hm-cell" href="${href}" title="${esc(label)}" style="background:${colour(e.rating)}">${e.rating.toFixed(1)}</a>`
+        : `<a class="hm-cell hm-none" href="${href}" title="${esc(label)}">–</a>`;
+    }).join("");
+    return `<div class="hm-row">
+      <a class="hm-season" href="/show/${show}/season/${s.season_number}">S${s.season_number}${avg ? `<span class="hm-avg">avg ${avg}</span>` : ""}</a>
+      <div class="hm-cells">${cells}</div>
+    </div>`;
+  }
+
+  document.querySelectorAll<HTMLElement>("[data-heatmap]").forEach(async (box) => {
+    const show = box.dataset.heatmap!;
+    try {
+      const res = await fetch(`/api/proxy/shows/${show}/rating-heatmap`);
+      if (!res.ok) return;
+      const { seasons } = await res.json();
+      if (!seasons?.some((s: any) => s.episodes.some((e: any) => e.rating != null))) return;
+      box.querySelector(".hm-grid")!.innerHTML = seasons.map((s: any) => row(show, s)).join("");
+      box.hidden = false;
+    } catch { /* The heat map just stays hidden. */ }
+  });
+</script>
