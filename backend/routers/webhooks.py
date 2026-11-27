@@ -1130,6 +1130,8 @@ async def _handle_jellyfin_scrobble_webhook(
             session.state = "playing"
             await db.commit()
         await _maybe_trakt_scrobble(settings, media, "start", data["progress_percent"], db=db)
+        await _maybe_mdblist_scrobble(settings, media, "start", data["progress_percent"], db=db)
+        await _maybe_simkl_scrobble(settings, media, "start", db=db)
 
     elif notification_type in ("PlaybackProgress", "playback.progress", "playback.pause"):
         if conn.sync_playback:
@@ -1141,6 +1143,7 @@ async def _handle_jellyfin_scrobble_webhook(
             await db.commit()
         if data["is_paused"]:
             await _maybe_trakt_scrobble(settings, media, "pause", data["progress_percent"], db=db)
+            await _maybe_mdblist_scrobble(settings, media, "pause", data["progress_percent"], db=db)
 
     elif notification_type in ("PlaybackStop", "playback.stop"):
         session = await _close_session(db, session_key)
@@ -1154,6 +1157,8 @@ async def _handle_jellyfin_scrobble_webhook(
             pct, _ = _part_progress(progress_percent, progress_seconds, i, len(parts))
             if i == 0 or pct > 0.05:
                 await _maybe_trakt_scrobble(settings, part, "stop", pct, db=db)
+                await _maybe_mdblist_scrobble(settings, part, "stop", pct, db=db)
+                await _maybe_simkl_scrobble(settings, part, "stop", db=db)
 
     elif notification_type in ("MarkPlayed", "item.markplayed"):
         await _close_session(db, session_key)
@@ -1164,6 +1169,8 @@ async def _handle_jellyfin_scrobble_webhook(
             await db.commit()
         for part in parts:
             await _maybe_trakt_scrobble(settings, part, "stop", 1.0, db=db)
+            await _maybe_mdblist_scrobble(settings, part, "stop", 1.0, db=db)
+            await _maybe_simkl_scrobble(settings, part, "stop", db=db)
 
     return {"status": "ok", "event": notification_type, "title": data["title"]}
 
